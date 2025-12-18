@@ -1,0 +1,89 @@
+# Terraform files
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# Terraform variable files (may contain sensitive data)
+*.tfvars
+*.tfvars.json
+terraform.tfvars
+terraform.tfvars.json
+
+# Exception: Allow example/template variable files
+!*.tfvars.example
+!example.tfvars
+!terraform.tfvars.example
+
+# Terraform plan files
+*.tfplan
+*.tfplan.json
+plan.out
+
+# Environment files
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.crt
+
+# AWS credentials
+.aws/credentials
+credentials
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Python (if using Python for testing)
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+venv/
+env/
+
+# Node modules (if using CDK or other Node.js tools)
+node_modules/
+package-lock.json
+
+# Logs
+*.log
+logs/
+
+# Backup files
+*.bak
+*.backup
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Temporary files
+*.tmp
+*.temp
+.tmp/
+tmp/
+
+# Archives
+*.zip
+*.tar.gz
+*.tar
+
+# Documentation builds
+docs/_build/
+site/
