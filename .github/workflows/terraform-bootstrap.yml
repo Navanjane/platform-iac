@@ -1,0 +1,113 @@
+name: Terraform Bootstrap
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type bootstrap to confirm initial deployment"
+        required: true
+        type: string
+
+env:
+  AWS_REGION: us-east-1
+  TF_VERSION: 1.14.3
+  TF_VAR_use_iam_role: false  # Disable role assumption for bootstrap
+
+jobs:
+  terraform-bootstrap:
+    name: Bootstrap Infrastructure
+    runs-on: ubuntu-latest
+    environment:
+      name: development
+    permissions:
+      contents: read
+
+    steps:
+      - name: Validate Confirmation
+        run: |
+          if [ "${{ github.event.inputs.confirmation }}" != "bootstrap" ]; then
+            echo "Confirmation failed. You must type bootstrap to proceed."
+            exit 1
+          fi
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (Direct - No Role Assumption)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+          # No role-to-assume - use direct credentials
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Plan (Bootstrap Mode)
+        run: terraform plan -no-color -input=false -out=tfplan
+        env:
+          TF_VAR_use_iam_role: false
+
+      - name: Terraform Apply (Bootstrap Mode)
+        run: terraform apply -auto-approve -input=false tfplan
+        env:
+          TF_VAR_use_iam_role: false
+
+      - name: Grant AssumeRole Permission
+        run: |
+          echo "Granting AssumeRole permission to user..."
+
+          # Get current AWS user
+          USER_ARN=$(aws sts get-caller-identity --query Arn --output text)
+          USER_NAME=$(echo $USER_ARN | awk -F'/' '{print $NF}')
+
+          echo "Current user: $USER_NAME"
+          echo "Granting permission to assume terraform-execution-role..."
+
+          aws iam put-user-policy \
+            --user-name "$USER_NAME" \
+            --policy-name AssumeRolePolicy \
+            --policy-document '{
+              "Version": "2012-10-17",
+              "Statement": [{
+                "Effect": "Allow",
+                "Action": "sts:AssumeRole",
+                "Resource": "arn:aws:iam::147145168434:role/terraform-execution-role"
+              }]
+            }'
+
+          echo "AssumeRole permission granted successfully"
+
+      - name: Verify Role Assumption
+        run: |
+          echo "Testing role assumption..."
+          aws sts assume-role \
+            --role-arn "arn:aws:iam::147145168434:role/terraform-execution-role" \
+            --role-session-name "bootstrap-test" \
+            --duration-seconds 900 \
+            --output json
+
+          echo "Role assumption successful. Infrastructure bootstrap complete!"
+
+      - name: Bootstrap Success
+        run: |
+          echo "==========================================="
+          echo "Bootstrap Complete!"
+          echo "==========================================="
+          echo ""
+          echo "Infrastructure created:"
+          echo "  - IAM terraform-execution-role"
+          echo "  - S3 state bucket"
+          echo "  - VPC and networking"
+          echo ""
+          echo "Next steps:"
+          echo "  1. Future deployments will use role assumption"
+          echo "  2. Use the main Terraform CI/CD workflow for updates"
+          echo "  3. The bootstrap workflow is only needed after full destroy"
+          echo ""
