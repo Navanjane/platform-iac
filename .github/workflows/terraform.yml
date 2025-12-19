@@ -2,10 +2,11 @@ name: Terraform CI/CD
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, closed]
     branches:
       - main
       - develop
-  workflow_dispatch:  # Manual trigger only
+  workflow_dispatch:  # Manual trigger
 
 env:
   AWS_REGION: us-east-1
@@ -17,10 +18,11 @@ jobs:
     name: Terraform Plan
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    if: github.event.action != 'closed'
     permissions:
       contents: read
       pull-requests: write
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -103,8 +105,12 @@ jobs:
     name: Terraform Apply
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    needs: terraform-plan
-    if: github.event_name == 'workflow_dispatch'
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' &&
+       github.event.action == 'closed' &&
+       github.event.pull_request.merged == true &&
+       github.event.pull_request.base.ref == 'main')
     environment:
       name: production
     permissions:
@@ -132,10 +138,8 @@ jobs:
       - name: Terraform Init
         run: terraform init
 
-      - name: Download Plan Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: tfplan
+      - name: Terraform Plan
+        run: terraform plan -no-color -input=false -out=tfplan
 
       - name: Terraform Apply
         run: terraform apply -auto-approve -input=false tfplan

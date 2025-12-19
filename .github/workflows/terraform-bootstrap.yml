@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       confirmation:
-        description: "Type bootstrap to confirm initial deployment"
+        description: "Type bootstrap to confirm (creates IAM roles only)"
         required: true
         type: string
 
@@ -15,9 +15,9 @@ env:
 
 jobs:
   terraform-bootstrap:
-    name: Bootstrap Infrastructure
+    name: Bootstrap IAM
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
     environment:
       name: bootstrap
     permissions:
@@ -50,12 +50,15 @@ jobs:
       - name: Terraform Init
         run: terraform init
 
-      - name: Terraform Plan (Bootstrap Mode)
-        run: terraform plan -no-color -input=false -out=tfplan
+      - name: Terraform Plan (Bootstrap Mode - IAM Only)
+        run: |
+          terraform plan -no-color -input=false \
+            -target=module.iam \
+            -out=tfplan
         env:
           TF_VAR_use_iam_role: false
 
-      - name: Terraform Apply (Bootstrap Mode)
+      - name: Terraform Apply (Bootstrap Mode - IAM Only)
         run: terraform apply -auto-approve -input=false tfplan
         env:
           TF_VAR_use_iam_role: false
@@ -102,13 +105,12 @@ jobs:
           echo "Bootstrap Complete!"
           echo "==========================================="
           echo ""
-          echo "Infrastructure created:"
-          echo "  - IAM terraform-execution-role"
-          echo "  - S3 state bucket"
-          echo "  - VPC and networking"
+          echo "Resources created:"
+          echo "  ✅ IAM terraform-execution-role"
+          echo "  ✅ IAM TerraformProvisioningPolicy"
           echo ""
           echo "Next steps:"
-          echo "  1. Future deployments will use role assumption"
-          echo "  2. Use the main Terraform CI/CD workflow for updates"
+          echo "  1. Use the main Terraform CI/CD workflow to deploy infrastructure (S3, VPC, EKS, etc.)"
+          echo "  2. All future deployments will use role assumption"
           echo "  3. The bootstrap workflow is only needed after full destroy"
           echo ""
