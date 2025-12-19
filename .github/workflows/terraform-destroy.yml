@@ -16,8 +16,9 @@ jobs:
   terraform-destroy:
     name: Terraform Destroy
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     environment:
-      name: development-destroy
+      name: production-destroy
     permissions:
       contents: read
     
