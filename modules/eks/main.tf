@@ -48,7 +48,8 @@ module "eks" {
   # EKS Managed Node Groups
   eks_managed_node_groups = {
     general = {
-      name = "${var.cluster_name}-general"
+      # Use auto-generated names to stay within AWS limits
+      use_name_prefix = true
 
       instance_types = var.node_group_instance_types
       capacity_type  = var.node_group_capacity_type
