@@ -112,7 +112,7 @@ jobs:
        github.event.pull_request.merged == true &&
        github.event.pull_request.base.ref == 'main')
     environment:
-      name: production
+      name: development
     permissions:
       contents: read
     
