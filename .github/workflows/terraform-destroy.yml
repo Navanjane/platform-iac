@@ -52,13 +52,22 @@ jobs:
       - name: Terraform Init
         run: terraform init
 
+      - name: Remove IAM Module from State
+        run: |
+          echo "⚠️ Removing IAM module from Terraform state to preserve it during destroy"
+          terraform state rm module.iam || echo "IAM module not in state or already removed"
+
       - name: Terraform Destroy
-        run: terraform destroy -auto-approve -input=false
+        run: |
+          echo "🗑️ Destroying all infrastructure except IAM module"
+          terraform destroy -auto-approve -input=false
 
       - name: Notify on Success
         if: success()
-        run: echo "Infrastructure destroyed successfully"
+        run: |
+          echo "✅ Infrastructure destroyed successfully"
+          echo "ℹ️ IAM module was preserved and remains in AWS (removed from state only)"
 
       - name: Notify on Failure
         if: failure()
-        run: echo "Terraform destroy failed"
+        run: echo "❌ Terraform destroy failed"
