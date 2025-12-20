@@ -90,9 +90,13 @@ variable "node_group_labels" {
 }
 
 variable "node_group_taints" {
-  description = "List of Kubernetes taints to apply to nodes"
-  type        = any
-  default     = []
+  description = "Map of Kubernetes taints to apply to nodes. Each key is a taint name, value is an object with key, value (optional), and effect."
+  type = map(object({
+    key    = string
+    value  = optional(string)
+    effect = string
+  }))
+  default = {}
 }
 
 variable "tags" {
