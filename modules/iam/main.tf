@@ -25,11 +25,6 @@ resource "aws_iam_role" "terraform" {
   tags = merge(var.tags, {
     Purpose = "Terraform provisioning"
   })
-
-  # Prevent deletion - role must exist for Terraform operations
-  lifecycle {
-    prevent_destroy = true
-  }
 }
 
 # Terraform provisioning policy
@@ -58,20 +53,10 @@ resource "aws_iam_policy" "terraform_policy" {
   })
 
   tags = var.tags
-
-  # Prevent deletion - policy provides necessary permissions
-  lifecycle {
-    prevent_destroy = true
-  }
 }
 
 # Attach policy to role
 resource "aws_iam_role_policy_attachment" "terraform_attach" {
   role       = aws_iam_role.terraform.name
   policy_arn = aws_iam_policy.terraform_policy.arn
-
-  # Prevent deletion - attachment required for role permissions
-  lifecycle {
-    prevent_destroy = true
-  }
 }
