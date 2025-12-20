@@ -33,24 +33,39 @@ module "vpc" {
   }
 }
 
-# EKS Module - Uncomment when ready to deploy EKS cluster
-# module "eks" {
-#   source = "./modules/eks"
-#   
-#   cluster_name    = "platform-eks-dev"
-#   cluster_version = "1.28"
-#   
-#   vpc_id             = module.vpc.vpc_id
-#   private_subnet_ids = module.vpc.private_subnets
-#   
-#   tags = {
-#     Environment = "dev"
-#     Project     = "platform-iac"
-#     ManagedBy   = "terraform"
-#   }
-#   
-#   depends_on = [module.vpc]
-# }
+# EKS Module - Creates EKS cluster with managed node groups
+module "eks" {
+  source = "./modules/eks"
+  
+  cluster_name    = "platform-eks-dev"
+  cluster_version = "1.31"
+  
+  vpc_id             = module.vpc.vpc_id
+  private_subnet_ids = module.vpc.private_subnets
+  
+  # Cluster endpoint access
+  cluster_endpoint_public_access  = true
+  cluster_endpoint_private_access = true
+  
+  # Enable cluster logging
+  cluster_enabled_log_types = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
+  
+  # Node group configuration
+  node_group_instance_types = ["t3.medium"]
+  node_group_capacity_type  = "ON_DEMAND"
+  node_group_min_size       = 1
+  node_group_max_size       = 3
+  node_group_desired_size   = 2
+  node_group_disk_size      = 20
+  
+  tags = {
+    Environment = "dev"
+    Project     = "platform-iac"
+    ManagedBy   = "terraform"
+  }
+  
+  depends_on = [module.vpc]
+}
 
 # ========================================
 # Outputs
@@ -97,4 +112,41 @@ output "public_subnet_ids" {
 output "nat_gateway_ids" {
   description = "List of NAT Gateway IDs"
   value       = module.vpc.nat_gateway_ids
+}
+
+# EKS Outputs
+output "eks_cluster_id" {
+  description = "The ID/name of the EKS cluster"
+  value       = module.eks.cluster_id
+}
+
+output "eks_cluster_endpoint" {
+  description = "Endpoint for your Kubernetes API server"
+  value       = module.eks.cluster_endpoint
+}
+
+output "eks_cluster_version" {
+  description = "The Kubernetes version for the cluster"
+  value       = module.eks.cluster_version
+}
+
+output "eks_cluster_security_group_id" {
+  description = "Security group ID attached to the EKS cluster"
+  value       = module.eks.cluster_security_group_id
+}
+
+output "eks_node_security_group_id" {
+  description = "Security group ID attached to the EKS nodes"
+  value       = module.eks.node_security_group_id
+}
+
+output "eks_oidc_provider_arn" {
+  description = "ARN of the OIDC Provider for EKS"
+  value       = module.eks.oidc_provider_arn
+}
+
+output "eks_cluster_certificate_authority_data" {
+  description = "Base64 encoded certificate data required to communicate with the cluster"
+  value       = module.eks.cluster_certificate_authority_data
+  sensitive   = true
 }
