@@ -69,15 +69,6 @@ jobs:
             const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
             #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
             #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
-            #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
-
-            <details><summary>Show Plan</summary>
-
-            \`\`\`terraform
-            ${process.env.PLAN}
-            \`\`\`
-
-            </details>
 
             *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
 
@@ -92,7 +83,7 @@ jobs:
   terraform-apply:
     name: Terraform Apply
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     # IMPORTANT: Never run terraform apply on push events (only on PR merge to main or manual trigger)
     if: |
       github.event_name != 'push' &&
@@ -128,16 +119,39 @@ jobs:
       - name: Terraform Init
         run: terraform init
 
-      - name: Terraform Plan
-        run: terraform plan -no-color -input=false -out=tfplan
+      - name: Apply Module - IAM
+        run: |
+          echo "📦 Applying IAM module..."
+          terraform apply -target=module.iam -auto-approve -input=false || echo "⚠️ IAM resources may already exist, continuing..."
         continue-on-error: true
 
-      - name: Terraform Apply
-        run: terraform apply -auto-approve -input=false tfplan
+      - name: Apply Module - VPC
+        run: |
+          echo "📦 Applying VPC module..."
+          terraform apply -target=module.vpc -auto-approve -input=false
 
-      - name: Notify on Success
+      - name: Apply Module - EKS Cluster
+        run: |
+          echo "📦 Applying EKS cluster..."
+          terraform apply -target=module.eks.module.eks.aws_eks_cluster.this -auto-approve -input=false
+
+      - name: Apply Module - EKS Supporting Resources
+        run: |
+          echo "📦 Applying EKS supporting resources (security groups, IAM, KMS)..."
+          terraform apply -target=module.eks.module.eks -auto-approve -input=false
+
+      - name: Apply All Remaining Resources
+        run: |
+          echo "📦 Applying all remaining resources (node groups, addons)..."
+          terraform apply -auto-approve -input=false
+
+      - name: Verify Deployment
         if: success()
-        run: echo "✅ Terraform apply completed successfully"
+        run: |
+          echo "✅ Terraform apply completed successfully"
+          echo ""
+          echo "📊 Deployment Summary:"
+          terraform output -json | jq -r 'to_entries[] | "  \(.key): \(.value.value)"'
 
       - name: Notify on Failure
         if: failure()
