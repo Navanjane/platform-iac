@@ -45,7 +45,8 @@ resource "aws_iam_policy" "terraform_policy" {
           "cloudwatch:*",
           "logs:*",
           "s3:*",
-          "dynamodb:*"
+          "dynamodb:*",
+          "kms:*"
         ]
         Resource = "*"
       }
