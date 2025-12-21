@@ -21,7 +21,7 @@ jobs:
     name: Terraform Validate
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    if: github.event.action \!= 'closed'
+    if: github.event.action != 'closed'
     permissions:
       contents: read
       pull-requests: write
