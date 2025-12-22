@@ -62,3 +62,20 @@ resource "aws_iam_role_policy_attachment" "terraform_attach" {
   role       = aws_iam_role.terraform.name
   policy_arn = aws_iam_policy.terraform_policy.arn
 }
+
+# Policy to allow bootstrap-admin user to assume the terraform execution role
+resource "aws_iam_user_policy" "bootstrap_assume_role" {
+  name = "AssumeTeraformExecutionRole"
+  user = "bootstrap-admin"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = "sts:AssumeRole"
+        Resource = aws_iam_role.terraform.arn
+      }
+    ]
+  })
+}
