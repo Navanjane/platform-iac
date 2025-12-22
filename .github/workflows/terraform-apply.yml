@@ -79,12 +79,11 @@ jobs:
               body: output
             })
 
-
-  terraform-apply:
-    name: Terraform Apply
+  terraform-init:
+    name: Initialize Terraform
     runs-on: ubuntu-latest
-    timeout-minutes: 90
-    # IMPORTANT: Never run terraform apply on push events (only on PR merge to main or manual trigger)
+    timeout-minutes: 10
+    needs: terraform-plan
     if: |
       github.event_name != 'push' &&
       (github.event_name == 'workflow_dispatch' ||
@@ -92,11 +91,9 @@ jobs:
         github.event.action == 'closed' &&
         github.event.pull_request.merged == true &&
         github.event.pull_request.base.ref == 'main'))
-    environment:
-      name: development
     permissions:
       contents: read
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -119,23 +116,113 @@ jobs:
       - name: Terraform Init
         run: terraform init
 
-      - name: Apply Module - IAM
+  apply-iam:
+    name: Apply IAM Module
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: terraform-init
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_TERRAFORM_ROLE_ARN }}
+          role-duration-seconds: 7200
+          role-skip-session-tagging: true
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Apply IAM Module
         run: |
           echo "📦 Applying IAM module..."
           terraform apply -target=module.iam -auto-approve -input=false || echo "⚠️ IAM resources may already exist, continuing..."
         continue-on-error: true
 
-      - name: Apply Module - VPC
+  apply-vpc:
+    name: Apply VPC Module
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: apply-iam
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_TERRAFORM_ROLE_ARN }}
+          role-duration-seconds: 7200
+          role-skip-session-tagging: true
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Apply VPC Module
         run: |
           echo "📦 Applying VPC module..."
           terraform apply -target=module.vpc -auto-approve -input=false
 
-      - name: Apply Module - EKS Cluster
+  apply-eks:
+    name: Apply EKS Module
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    needs: apply-vpc
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_TERRAFORM_ROLE_ARN }}
+          role-duration-seconds: 7200
+          role-skip-session-tagging: true
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Apply EKS Cluster
         run: |
           echo "📦 Applying EKS cluster..."
           terraform apply -target=module.eks.module.eks.aws_eks_cluster.this -auto-approve -input=false
 
-      - name: Apply Module - EKS Supporting Resources
+      - name: Apply EKS Supporting Resources
         run: |
           echo "📦 Applying EKS supporting resources (security groups, IAM, KMS)..."
           terraform apply -target=module.eks.module.eks -auto-approve -input=false
@@ -149,19 +236,15 @@ jobs:
       - name: Verify Deployment
         if: success()
         run: |
-          echo "✅ Terraform apply completed successfully"
+          echo "✅ EKS deployment completed successfully"
           echo ""
           echo "📊 Deployment Summary:"
           terraform output -json | jq -r 'to_entries[] | "  \(.key): \(.value.value)"'
 
-      - name: Notify on Failure
-        if: failure()
-        run: echo "❌ Terraform apply failed"
-
   generate-kubeconfig:
     name: Generate Kubeconfig
     runs-on: ubuntu-latest
-    needs: terraform-apply
+    needs: apply-eks
     timeout-minutes: 10
     permissions:
       contents: read
