@@ -40,17 +40,7 @@ module "eks" {
         }
       })
     }
-    aws-ebs-csi-driver = {
-      most_recent = true
-      timeouts = {
-        create = "30m"
-        update = "30m"
-        delete = "30m"
-      }
-    }
   }
-
-  # EKS Managed Node Groups
   eks_managed_node_groups = {
     general = {
       # Use auto-generated names to stay within AWS limits
