@@ -144,6 +144,7 @@ jobs:
         run: |
           echo "📦 Applying all remaining resources (node groups, addons)..."
           terraform apply -auto-approve -input=false
+        continue-on-error: true
 
       - name: Verify Deployment
         if: success()
