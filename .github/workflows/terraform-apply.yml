@@ -157,3 +157,58 @@ jobs:
       - name: Notify on Failure
         if: failure()
         run: echo "❌ Terraform apply failed"
+
+  generate-kubeconfig:
+    name: Generate Kubeconfig
+    runs-on: ubuntu-latest
+    needs: terraform-apply
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_TERRAFORM_ROLE_ARN }}
+          role-duration-seconds: 3600
+          role-skip-session-tagging: true
+
+      - name: Generate Kubeconfig
+        run: |
+          echo "📝 Generating kubeconfig for EKS cluster..."
+          aws eks update-kubeconfig \
+            --region ${{ env.AWS_REGION }} \
+            --name platform-eks-dev \
+            --kubeconfig ./kubeconfig-platform-eks-dev
+          echo "✅ Kubeconfig generated successfully"
+          
+      - name: Verify Kubeconfig
+        run: |
+          echo "🔍 Verifying kubeconfig..."
+          export KUBECONFIG=./kubeconfig-platform-eks-dev
+          kubectl version --client
+          kubectl cluster-info
+          
+      - name: Upload Kubeconfig as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kubeconfig-platform-eks-dev
+          path: ./kubeconfig-platform-eks-dev
+          retention-days: 7
+          
+      - name: Kubeconfig Summary
+        run: |
+          echo "✅ Kubeconfig generation completed"
+          echo ""
+          echo "📥 Download Instructions:"
+          echo "  1. Go to Actions tab -> This workflow run"
+          echo "  2. Scroll to Artifacts section"
+          echo "  3. Download 'kubeconfig-platform-eks-dev'"
+          echo "  4. Use: export KUBECONFIG=./kubeconfig-platform-eks-dev"
