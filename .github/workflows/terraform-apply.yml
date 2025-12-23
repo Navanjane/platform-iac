@@ -289,3 +289,62 @@ jobs:
           echo "  2. Scroll to Artifacts section"
           echo "  3. Download 'kubeconfig-platform-eks-dev'"
           echo "  4. Use: export KUBECONFIG=./kubeconfig-platform-eks-dev"
+
+  verify-cluster:
+    name: Verify Kubernetes Cluster
+    runs-on: ubuntu-latest
+    needs: generate-kubeconfig
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    
+    steps:
+      - name: Download Kubeconfig Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: kubeconfig-platform-eks-dev
+          path: .
+          
+      - name: Configure kubectl
+        run: |
+          echo "🔧 Configuring kubectl..."
+          export KUBECONFIG=./kubeconfig-platform-eks-dev
+          kubectl version --client
+          echo "✅ kubectl configured successfully"
+          
+      - name: Verify Cluster Connection
+        run: |
+          echo "🔍 Verifying cluster connection..."
+          export KUBECONFIG=./kubeconfig-platform-eks-dev
+          kubectl cluster-info
+          kubectl get nodes -o wide
+          
+      - name: List All Pods
+        run: |
+          echo "📦 Listing all pods in all namespaces..."
+          export KUBECONFIG=./kubeconfig-platform-eks-dev
+          kubectl get pods --all-namespaces -o wide
+          
+      - name: List System Components
+        run: |
+          echo "🔧 Checking system components..."
+          export KUBECONFIG=./kubeconfig-platform-eks-dev
+          echo ""
+          echo "=== Namespaces ==="
+          kubectl get namespaces
+          echo ""
+          echo "=== Deployments in kube-system ==="
+          kubectl get deployments -n kube-system
+          echo ""
+          echo "=== DaemonSets in kube-system ==="
+          kubectl get daemonsets -n kube-system
+          
+      - name: Cluster Health Summary
+        run: |
+          echo "✅ Kubernetes cluster verification completed"
+          echo ""
+          export KUBECONFIG=./kubeconfig-platform-eks-dev
+          echo "📊 Cluster Summary:"
+          echo "  Nodes: $(kubectl get nodes --no-headers | wc -l)"
+          echo "  Pods: $(kubectl get pods --all-namespaces --no-headers | wc -l)"
+          echo "  Namespaces: $(kubectl get namespaces --no-headers | wc -l)"
