@@ -290,6 +290,7 @@ jobs:
           echo "  3. Download 'kubeconfig-platform-eks-dev'"
           echo "  4. Use: export KUBECONFIG=./kubeconfig-platform-eks-dev"
 
+
   verify-cluster:
     name: Verify Kubernetes Cluster
     runs-on: ubuntu-latest
@@ -304,6 +305,16 @@ jobs:
         with:
           name: kubeconfig-platform-eks-dev
           path: .
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_TERRAFORM_ROLE_ARN }}
+          role-duration-seconds: 3600
+          role-skip-session-tagging: true
           
       - name: Configure kubectl
         run: |
