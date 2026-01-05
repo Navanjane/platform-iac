@@ -11,3 +11,9 @@ provider "aws" {
     }
   }
 }
+
+provider "helm" {
+  kubernetes = {
+    config_path = "./kubeconfig-platform-eks-dev"
+  }
+}

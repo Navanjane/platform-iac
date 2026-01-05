@@ -359,3 +359,183 @@ jobs:
           echo "  Nodes: $(kubectl get nodes --no-headers | wc -l)"
           echo "  Pods: $(kubectl get pods --all-namespaces --no-headers | wc -l)"
           echo "  Namespaces: $(kubectl get namespaces --no-headers | wc -l)"
+
+  deploy-argocd:
+    name: Deploy ArgoCD
+    runs-on: ubuntu-latest
+    needs: generate-kubeconfig
+    timeout-minutes: 30
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download Kubeconfig Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: kubeconfig-platform-eks-dev
+          path: .
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_TERRAFORM_ROLE_ARN }}
+          role-duration-seconds: 3600
+          role-skip-session-tagging: true
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Deploy ArgoCD Module
+        run: |
+          echo "📦 Deploying ArgoCD module..."
+          terraform apply -target=module.argocd -auto-approve -input=false
+          echo "✅ ArgoCD deployment initiated"
+
+      - name: Deployment Summary
+        if: success()
+        run: |
+          echo "✅ ArgoCD deployment completed successfully"
+          echo ""
+          echo "📊 Deployment Summary:"
+          terraform output -json | jq -r 'to_entries[] | select(.key | startswith("argocd")) | "  \(.key): \(.value.value)"'
+
+  verify-argocd-pods:
+    name: Verify ArgoCD Pods
+    runs-on: ubuntu-latest
+    needs: deploy-argocd
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    steps:
+      - name: Download Kubeconfig Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: kubeconfig-platform-eks-dev
+          path: .
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_TERRAFORM_ROLE_ARN }}
+          role-duration-seconds: 3600
+          role-skip-session-tagging: true
+
+      - name: Wait for ArgoCD Namespace
+        run: |
+          echo "⏳ Waiting for ArgoCD namespace to be created..."
+          export KUBECONFIG=./kubeconfig-platform-eks-dev
+
+          timeout=300
+          elapsed=0
+          interval=5
+
+          while ! kubectl get namespace argocd >/dev/null 2>&1; do
+            if [ $elapsed -ge $timeout ]; then
+              echo "❌ Timeout waiting for ArgoCD namespace"
+              exit 1
+            fi
+            echo "Waiting for namespace... ($elapsed/$timeout seconds)"
+            sleep $interval
+            elapsed=$((elapsed + interval))
+          done
+
+          echo "✅ ArgoCD namespace found"
+
+      - name: Wait for ArgoCD Pods
+        run: |
+          echo "⏳ Waiting for ArgoCD pods to be ready..."
+          export KUBECONFIG=./kubeconfig-platform-eks-dev
+
+          echo "Waiting for ArgoCD pods to be created..."
+          kubectl wait --for=condition=Ready pods --all -n argocd --timeout=600s || true
+
+          echo ""
+          echo "Current ArgoCD pod status:"
+          kubectl get pods -n argocd
+
+      - name: Verify ArgoCD Components
+        run: |
+          echo "🔍 Verifying ArgoCD components..."
+          export KUBECONFIG=./kubeconfig-platform-eks-dev
+
+          echo ""
+          echo "=== ArgoCD Pods ==="
+          kubectl get pods -n argocd -o wide
+
+          echo ""
+          echo "=== ArgoCD Services ==="
+          kubectl get svc -n argocd
+
+          echo ""
+          echo "=== ArgoCD Deployments ==="
+          kubectl get deployments -n argocd
+
+          echo ""
+          echo "=== ArgoCD StatefulSets ==="
+          kubectl get statefulsets -n argocd
+
+      - name: Check ArgoCD Server Status
+        run: |
+          echo "🔍 Checking ArgoCD Server status..."
+          export KUBECONFIG=./kubeconfig-platform-eks-dev
+
+          # Check if argocd-server deployment exists and is ready
+          kubectl rollout status deployment/argocd-server -n argocd --timeout=300s || echo "⚠️ ArgoCD server not fully ready yet"
+
+      - name: Get ArgoCD Access Information
+        run: |
+          echo "📋 ArgoCD Access Information"
+          echo "================================"
+          export KUBECONFIG=./kubeconfig-platform-eks-dev
+
+          # Get LoadBalancer information
+          echo ""
+          echo "ArgoCD Server Service:"
+          kubectl get svc argocd-server -n argocd
+
+          # Get LoadBalancer URL if available
+          LB_HOSTNAME=$(kubectl get svc argocd-server -n argocd -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "pending")
+          if [ "$LB_HOSTNAME" != "pending" ] && [ -n "$LB_HOSTNAME" ]; then
+            echo ""
+            echo "🌐 ArgoCD Server URL: http://$LB_HOSTNAME"
+          else
+            echo ""
+            echo "⏳ LoadBalancer is provisioning. Check back in a few minutes."
+          fi
+
+          # Get initial admin password
+          echo ""
+          echo "🔑 Initial Admin Password:"
+          kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath='{.data.password}' | base64 -d || echo "Secret not found yet"
+          echo ""
+
+      - name: Verification Summary
+        run: |
+          echo "✅ ArgoCD verification completed"
+          echo ""
+          export KUBECONFIG=./kubeconfig-platform-eks-dev
+          echo "📊 ArgoCD Summary:"
+          echo "  Namespace: argocd"
+          echo "  Pods: $(kubectl get pods -n argocd --no-headers 2>/dev/null | wc -l)"
+          echo "  Ready Pods: $(kubectl get pods -n argocd --field-selector=status.phase=Running --no-headers 2>/dev/null | wc -l)"
+          echo ""
+          echo "Next steps:"
+          echo "  1. Wait for LoadBalancer to be provisioned"
+          echo "  2. Access ArgoCD UI using the URL above"
+          echo "  3. Login with username: admin"
+          echo "  4. Use the initial admin password displayed above"

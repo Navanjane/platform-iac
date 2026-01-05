@@ -67,6 +67,12 @@ module "eks" {
   depends_on = [module.vpc]
 }
 
+module "argocd" {
+  source = "./modules/argocd"
+
+  depends_on = [module.eks]
+}
+
 # ========================================
 # Outputs
 # ========================================
@@ -149,4 +155,20 @@ output "eks_cluster_certificate_authority_data" {
   description = "Base64 encoded certificate data required to communicate with the cluster"
   value       = module.eks.cluster_certificate_authority_data
   sensitive   = true
+}
+
+# ArgoCD Outputs
+output "argocd_release_name" {
+  description = "The name of the ArgoCD Helm release"
+  value       = module.argocd.release_name
+}
+
+output "argocd_namespace" {
+  description = "The namespace where ArgoCD is deployed"
+  value       = module.argocd.namespace
+}
+
+output "argocd_chart_version" {
+  description = "The version of the ArgoCD chart deployed"
+  value       = module.argocd.chart_version
 }
