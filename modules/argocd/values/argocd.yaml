@@ -1,0 +1,32 @@
+global:
+  domain: argocd.example.com
+
+server:
+  service:
+    type: LoadBalancer
+  extraArgs:
+    - --insecure
+
+configs:
+  params:
+    server.insecure: true
+
+  cm:
+    create: true
+    application.instanceLabelKey: argocd.argoproj.io/instance
+
+  rbac:
+    create: true
+    policy.default: role:readonly
+
+dex:
+  enabled: false
+
+redis:
+  enabled: true
+
+controller:
+  replicas: 1
+
+repoServer:
+  replicas: 1

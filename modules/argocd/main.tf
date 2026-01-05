@@ -1,11 +1,14 @@
 resource "helm_release" "argocd" {
-  name = "argocd"
+  name = var.release_name
 
   repository       = "https://argoproj.github.io/argo-helm"
   chart            = "argo-cd"
-  namespace        = "argocd"
-  create_namespace = true
-  version          = "3.2.3"
+  namespace        = var.namespace
+  create_namespace = var.create_namespace
+  version          = var.chart_version
 
-  values = [file("values/argocd.yaml")]
+  values = var.values_file != "" ? [
+    file("${path.module}/values/argocd.yaml"),
+    file(var.values_file)
+  ] : [file("${path.module}/values/argocd.yaml")]
 }
