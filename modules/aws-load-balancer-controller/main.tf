@@ -1,6 +1,14 @@
+# Local variables
+locals {
+  # Only create resources if cluster_name is provided and not null
+  create_resources  = var.cluster_name != null && var.cluster_name != ""
+  safe_cluster_name = var.cluster_name != null ? var.cluster_name : "placeholder"
+  safe_vpc_id       = var.vpc_id != null ? var.vpc_id : ""
+}
+
 # Data source for AWS Load Balancer Controller IAM policy
 data "aws_iam_policy_document" "aws_load_balancer_controller" {
-  count = var.cluster_name != "" ? 1 : 0
+  count = local.create_resources ? 1 : 0
 
   source_policy_documents = [
     file("${path.module}/iam-policy.json")
@@ -9,9 +17,9 @@ data "aws_iam_policy_document" "aws_load_balancer_controller" {
 
 # IAM Policy for AWS Load Balancer Controller
 resource "aws_iam_policy" "aws_load_balancer_controller" {
-  count = var.cluster_name != "" ? 1 : 0
+  count = local.create_resources ? 1 : 0
 
-  name        = "${var.cluster_name}-aws-load-balancer-controller"
+  name        = "${local.safe_cluster_name}-aws-load-balancer-controller"
   path        = "/"
   description = "IAM policy for AWS Load Balancer Controller"
   policy      = data.aws_iam_policy_document.aws_load_balancer_controller[0].json
@@ -19,7 +27,7 @@ resource "aws_iam_policy" "aws_load_balancer_controller" {
   tags = merge(
     var.tags,
     {
-      Name      = "${var.cluster_name}-aws-load-balancer-controller"
+      Name      = "${local.safe_cluster_name}-aws-load-balancer-controller"
       ManagedBy = "terraform"
     }
   )
@@ -27,12 +35,12 @@ resource "aws_iam_policy" "aws_load_balancer_controller" {
 
 # IAM Role for Service Account (IRSA)
 module "aws_load_balancer_controller_irsa" {
-  count = var.cluster_name != "" ? 1 : 0
+  count = local.create_resources ? 1 : 0
 
   source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
   version = "~> 5.0"
 
-  role_name = "${var.cluster_name}-aws-load-balancer-controller"
+  role_name = "${local.safe_cluster_name}-aws-load-balancer-controller"
 
   attach_load_balancer_controller_policy = true
 
@@ -48,7 +56,7 @@ module "aws_load_balancer_controller_irsa" {
 
 # Helm Release for AWS Load Balancer Controller
 resource "helm_release" "aws_load_balancer_controller" {
-  count = var.cluster_name != "" ? 1 : 0
+  count = local.create_resources ? 1 : 0
 
   name       = "aws-load-balancer-controller"
   repository = "https://aws.github.io/eks-charts"
@@ -59,7 +67,7 @@ resource "helm_release" "aws_load_balancer_controller" {
   set = [
     {
       name  = "clusterName"
-      value = var.cluster_name
+      value = local.safe_cluster_name
     },
     {
       name  = "serviceAccount.create"
@@ -79,7 +87,7 @@ resource "helm_release" "aws_load_balancer_controller" {
     },
     {
       name  = "vpcId"
-      value = var.vpc_id
+      value = local.safe_vpc_id
     },
     {
       name  = "enableShield"
