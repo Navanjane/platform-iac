@@ -1,11 +1,11 @@
 output "iam_role_arn" {
   description = "ARN of the IAM role for AWS Load Balancer Controller"
-  value       = module.aws_load_balancer_controller_irsa.iam_role_arn
+  value       = try(module.aws_load_balancer_controller_irsa[0].iam_role_arn, "")
 }
 
 output "iam_role_name" {
   description = "Name of the IAM role"
-  value       = module.aws_load_balancer_controller_irsa.iam_role_name
+  value       = try(module.aws_load_balancer_controller_irsa[0].iam_role_name, "")
 }
 
 output "service_account_name" {
@@ -20,10 +20,10 @@ output "namespace" {
 
 output "helm_release_name" {
   description = "Name of the Helm release"
-  value       = helm_release.aws_load_balancer_controller.name
+  value       = try(helm_release.aws_load_balancer_controller[0].name, "")
 }
 
 output "helm_release_status" {
   description = "Status of the Helm release"
-  value       = helm_release.aws_load_balancer_controller.status
+  value       = try(helm_release.aws_load_balancer_controller[0].status, "")
 }

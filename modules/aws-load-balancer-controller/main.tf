@@ -1,5 +1,7 @@
 # Data source for AWS Load Balancer Controller IAM policy
 data "aws_iam_policy_document" "aws_load_balancer_controller" {
+  count = var.cluster_name != "" ? 1 : 0
+
   source_policy_documents = [
     file("${path.module}/iam-policy.json")
   ]
@@ -7,10 +9,12 @@ data "aws_iam_policy_document" "aws_load_balancer_controller" {
 
 # IAM Policy for AWS Load Balancer Controller
 resource "aws_iam_policy" "aws_load_balancer_controller" {
+  count = var.cluster_name != "" ? 1 : 0
+
   name        = "${var.cluster_name}-aws-load-balancer-controller"
   path        = "/"
   description = "IAM policy for AWS Load Balancer Controller"
-  policy      = data.aws_iam_policy_document.aws_load_balancer_controller.json
+  policy      = data.aws_iam_policy_document.aws_load_balancer_controller[0].json
 
   tags = merge(
     var.tags,
@@ -23,6 +27,8 @@ resource "aws_iam_policy" "aws_load_balancer_controller" {
 
 # IAM Role for Service Account (IRSA)
 module "aws_load_balancer_controller_irsa" {
+  count = var.cluster_name != "" ? 1 : 0
+
   source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
   version = "~> 5.0"
 
@@ -42,6 +48,8 @@ module "aws_load_balancer_controller_irsa" {
 
 # Helm Release for AWS Load Balancer Controller
 resource "helm_release" "aws_load_balancer_controller" {
+  count = var.cluster_name != "" ? 1 : 0
+
   name       = "aws-load-balancer-controller"
   repository = "https://aws.github.io/eks-charts"
   chart      = "aws-load-balancer-controller"
@@ -63,7 +71,7 @@ resource "helm_release" "aws_load_balancer_controller" {
     },
     {
       name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
-      value = module.aws_load_balancer_controller_irsa.iam_role_arn
+      value = module.aws_load_balancer_controller_irsa[0].iam_role_arn
     },
     {
       name  = "region"
