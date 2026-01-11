@@ -13,8 +13,8 @@ provider "aws" {
 }
 
 provider "kubernetes" {
-  host                   = can(module.eks.cluster_endpoint) ? module.eks.cluster_endpoint : "https://localhost"
-  cluster_ca_certificate = can(module.eks.cluster_certificate_authority_data) ? base64decode(module.eks.cluster_certificate_authority_data) : ""
+  host                   = try(coalesce(module.eks.cluster_endpoint, "https://localhost"), "https://localhost")
+  cluster_ca_certificate = try(base64decode(coalesce(module.eks.cluster_certificate_authority_data, "LS0tCg==")), "")
 
   exec {
     api_version = "client.authentication.k8s.io/v1beta1"
@@ -23,7 +23,7 @@ provider "kubernetes" {
       "eks",
       "get-token",
       "--cluster-name",
-      can(module.eks.cluster_id) ? module.eks.cluster_id : "dummy-cluster",
+      try(coalesce(module.eks.cluster_id, "dummy-cluster"), "dummy-cluster"),
       "--region",
       "us-east-1"
     ]
@@ -32,8 +32,8 @@ provider "kubernetes" {
 
 provider "helm" {
   kubernetes = {
-    host                   = can(module.eks.cluster_endpoint) ? module.eks.cluster_endpoint : "https://localhost"
-    cluster_ca_certificate = can(module.eks.cluster_certificate_authority_data) ? base64decode(module.eks.cluster_certificate_authority_data) : ""
+    host                   = try(coalesce(module.eks.cluster_endpoint, "https://localhost"), "https://localhost")
+    cluster_ca_certificate = try(base64decode(coalesce(module.eks.cluster_certificate_authority_data, "LS0tCg==")), "")
 
     exec = {
       api_version = "client.authentication.k8s.io/v1beta1"
@@ -42,7 +42,7 @@ provider "helm" {
         "eks",
         "get-token",
         "--cluster-name",
-        can(module.eks.cluster_id) ? module.eks.cluster_id : "dummy-cluster",
+        try(coalesce(module.eks.cluster_id, "dummy-cluster"), "dummy-cluster"),
         "--region",
         "us-east-1"
       ]
