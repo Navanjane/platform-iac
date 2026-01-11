@@ -92,10 +92,10 @@ module "acm" {
 module "aws_load_balancer_controller" {
   source = "./modules/aws-load-balancer-controller"
 
-  cluster_name      = try(module.eks.cluster_id, "")
+  cluster_name      = can(module.eks.cluster_id) ? module.eks.cluster_id : null
   vpc_id            = module.vpc.vpc_id
-  oidc_provider_arn = try(module.eks.oidc_provider_arn, "")
-  oidc_provider     = try(module.eks.oidc_provider, "")
+  oidc_provider_arn = can(module.eks.oidc_provider_arn) ? module.eks.oidc_provider_arn : null
+  oidc_provider     = can(module.eks.oidc_provider) ? module.eks.oidc_provider : null
   aws_region        = "us-east-1"
 
   # Chart version
