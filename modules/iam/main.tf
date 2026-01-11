@@ -47,7 +47,9 @@ resource "aws_iam_policy" "terraform_policy" {
           "s3:*",
           "dynamodb:*",
           "kms:*",
-          "ssm:*"
+          "ssm:*",
+          "route53:*",
+          "acm:*"
         ]
         Resource = "*"
       }

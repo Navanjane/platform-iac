@@ -12,6 +12,7 @@ env:
   AWS_REGION: us-east-1
   TF_VERSION: 1.14.3
   TF_VAR_use_iam_role: false  # GitHub Actions already assumed the role
+  TF_VAR_domain_name: ${{ vars.DOMAIN_NAME }}  # Set in repository variables
 
 jobs:
   terraform-destroy:
@@ -63,8 +64,26 @@ jobs:
 
       - name: Destroy ArgoCD Module
         run: |
-          echo "🗑️ Destroying ArgoCD module first (before EKS cluster)..."
+          echo "🗑️ Destroying ArgoCD module (removes Ingress and triggers ALB deletion)..."
           terraform destroy -target=module.argocd -auto-approve -input=false || echo "⚠️ ArgoCD module may not exist or already destroyed"
+        continue-on-error: true
+
+      - name: Wait for ALB Deletion
+        run: |
+          echo "⏳ Waiting for ALB to be fully deleted..."
+          sleep 60
+        continue-on-error: true
+
+      - name: Destroy AWS Load Balancer Controller
+        run: |
+          echo "🗑️ Destroying AWS Load Balancer Controller..."
+          terraform destroy -target=module.aws_load_balancer_controller -auto-approve -input=false || echo "⚠️ ALB Controller may not exist or already destroyed"
+        continue-on-error: true
+
+      - name: Destroy ACM Certificate
+        run: |
+          echo "🗑️ Destroying ACM certificate..."
+          terraform destroy -target=module.acm -auto-approve -input=false || echo "⚠️ ACM may not exist or already destroyed"
         continue-on-error: true
 
       - name: Remove IAM Module from State

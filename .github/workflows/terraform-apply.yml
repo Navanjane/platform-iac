@@ -15,6 +15,7 @@ env:
   AWS_REGION: us-east-1
   TF_VERSION: 1.14.3
   TF_VAR_use_iam_role: false  # GitHub Actions already assumed the role
+  TF_VAR_domain_name: ${{ vars.DOMAIN_NAME }}  # Set in repository variables
 
 jobs:
   terraform-plan:
@@ -360,10 +361,106 @@ jobs:
           echo "  Pods: $(kubectl get pods --all-namespaces --no-headers | wc -l)"
           echo "  Namespaces: $(kubectl get namespaces --no-headers | wc -l)"
 
-  deploy-argocd:
-    name: Deploy ArgoCD
+  deploy-acm:
+    name: Deploy ACM Certificate
+    runs-on: ubuntu-latest
+    needs: apply-eks
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_TERRAFORM_ROLE_ARN }}
+          role-duration-seconds: 3600
+          role-skip-session-tagging: true
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Deploy ACM Module
+        run: |
+          echo "📦 Deploying ACM certificate (manual DNS validation required)..."
+          terraform apply -target=module.acm -auto-approve -input=false
+          echo "✅ ACM certificate created (status: PENDING_VALIDATION)"
+
+      - name: Output DNS Validation Records
+        run: |
+          echo "📋 DNS VALIDATION RECORDS - ADD THESE TO VERCEL DNS:"
+          echo "================================================================"
+          terraform output -json acm_dns_validation_records | jq -r '.[] | "Type: \(.type)\nName: \(.name)\nValue: \(.value)\n"'
+          echo "================================================================"
+          echo ""
+          echo "⚠️ IMPORTANT: Add the DNS validation record(s) above to Vercel DNS"
+          echo "   The certificate status will remain PENDING_VALIDATION until you do this"
+          echo "   It may take a few minutes after adding the record for AWS to validate"
+
+  deploy-alb-controller:
+    name: Deploy AWS Load Balancer Controller
     runs-on: ubuntu-latest
     needs: generate-kubeconfig
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download Kubeconfig Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: kubeconfig-platform-eks-dev
+          path: .
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_TERRAFORM_ROLE_ARN }}
+          role-duration-seconds: 3600
+          role-skip-session-tagging: true
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Deploy AWS Load Balancer Controller
+        run: |
+          echo "📦 Deploying AWS Load Balancer Controller..."
+          terraform apply -target=module.aws_load_balancer_controller -auto-approve -input=false
+          echo "✅ AWS Load Balancer Controller deployed"
+
+      - name: Verify Controller Deployment
+        run: |
+          echo "🔍 Verifying AWS Load Balancer Controller..."
+          export KUBECONFIG=./kubeconfig-platform-eks-dev
+          kubectl wait --for=condition=Ready pods -l app.kubernetes.io/name=aws-load-balancer-controller -n kube-system --timeout=300s || echo "⚠️ Controller pods not ready yet"
+          kubectl get deployment aws-load-balancer-controller -n kube-system
+
+  deploy-argocd:
+    name: Deploy ArgoCD with Ingress
+    runs-on: ubuntu-latest
+    needs: [deploy-alb-controller, deploy-acm]
     timeout-minutes: 30
     permissions:
       contents: read
@@ -398,17 +495,35 @@ jobs:
 
       - name: Deploy ArgoCD Module
         run: |
-          echo "📦 Deploying ArgoCD module..."
+          echo "📦 Deploying ArgoCD with Ingress and ALB..."
           terraform apply -target=module.argocd -auto-approve -input=false
-          echo "✅ ArgoCD deployment initiated"
+          echo "✅ ArgoCD deployment with Ingress completed"
 
-      - name: Deployment Summary
+      - name: Display Access Information
         if: success()
         run: |
-          echo "✅ ArgoCD deployment completed successfully"
+          echo "✅ ArgoCD Access Information"
+          echo "================================"
           echo ""
-          echo "📊 Deployment Summary:"
-          terraform output -json | jq -r 'to_entries[] | select(.key | startswith("argocd")) | "  \(.key): \(.value.value)"'
+          echo "🔗 ALB Hostname:"
+          ALB_HOSTNAME=$(terraform output -raw argocd_alb_hostname || echo "ALB not ready yet")
+          echo "$ALB_HOSTNAME"
+          echo ""
+          echo "📋 NEXT STEP - CREATE CNAME IN VERCEL DNS:"
+          echo "================================================================"
+          echo "Type: CNAME"
+          echo "Name: argocd"
+          echo "Value: $ALB_HOSTNAME"
+          echo "TTL: 300 (or default)"
+          echo "================================================================"
+          echo ""
+          echo "🌐 After adding CNAME, access ArgoCD at:"
+          terraform output -raw argocd_url || echo "argocd.yourdomain.com"
+          echo ""
+          echo ""
+          echo "📊 Certificate Status:"
+          echo "  $(terraform output -raw acm_certificate_status)"
+          echo "  ⚠️ If PENDING_VALIDATION, add DNS validation records from deploy-acm job"
 
   verify-argocd-pods:
     name: Verify ArgoCD Pods

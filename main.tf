@@ -67,10 +67,80 @@ module "eks" {
   depends_on = [module.vpc]
 }
 
+# ACM Certificate Module - SSL/TLS Certificate
+# NOTE: Certificate validation is MANUAL - you must add DNS validation records in Vercel
+module "acm" {
+  source = "./modules/acm"
+
+  domain_name               = "argocd.${var.domain_name}"
+  subject_alternative_names = [] # Add more subdomains if needed
+  environment               = "dev"
+
+  # Skip automatic DNS validation (Vercel manages DNS)
+  skip_dns_validation = true
+
+  tags = {
+    Environment = "dev"
+    Project     = "platform-iac"
+    ManagedBy   = "terraform"
+    Application = "argocd"
+  }
+
+  depends_on = [module.vpc]
+}
+
+# AWS Load Balancer Controller Module
+module "aws_load_balancer_controller" {
+  source = "./modules/aws-load-balancer-controller"
+
+  cluster_name      = module.eks.cluster_id
+  vpc_id            = module.vpc.vpc_id
+  oidc_provider_arn = module.eks.oidc_provider_arn
+  oidc_provider     = module.eks.oidc_provider
+  aws_region        = "us-east-1"
+
+  # Chart version
+  chart_version = "1.11.0"
+
+  # Optional features
+  enable_shield = false
+  enable_waf    = false
+  enable_wafv2  = false
+
+  tags = {
+    Environment = "dev"
+    Project     = "platform-iac"
+    ManagedBy   = "terraform"
+  }
+
+  depends_on = [module.eks]
+}
+
+# ArgoCD Module - GitOps Continuous Delivery
+# NOTE: DNS managed in Vercel - create CNAME record pointing to ALB hostname
 module "argocd" {
   source = "./modules/argocd"
 
-  depends_on = [module.eks]
+  # Enable ingress with ALB
+  enable_ingress    = true
+  domain_name       = "argocd.${var.domain_name}"
+  certificate_arn   = module.acm.certificate_arn
+  create_dns_record = false # DNS managed in Vercel, not Route53
+
+  # ALB configuration
+  alb_group_name = "platform-alb-dev"
+
+  tags = {
+    Environment = "dev"
+    Project     = "platform-iac"
+    ManagedBy   = "terraform"
+  }
+
+  depends_on = [
+    module.eks,
+    module.aws_load_balancer_controller,
+    module.acm
+  ]
 }
 
 # ========================================
@@ -171,4 +241,46 @@ output "argocd_namespace" {
 output "argocd_chart_version" {
   description = "The version of the ArgoCD chart deployed"
   value       = module.argocd.chart_version
+}
+
+output "argocd_url" {
+  description = "HTTPS URL to access ArgoCD"
+  value       = module.argocd.argocd_url
+}
+
+output "argocd_alb_hostname" {
+  description = "ALB hostname for ArgoCD - CREATE CNAME IN VERCEL: argocd → <this-hostname>"
+  value       = module.argocd.ingress_hostname
+}
+
+output "domain_name" {
+  description = "The domain name"
+  value       = var.domain_name
+}
+
+# ACM Outputs
+output "acm_certificate_arn" {
+  description = "ARN of the ACM certificate"
+  value       = module.acm.certificate_arn
+}
+
+output "acm_certificate_status" {
+  description = "Status of the ACM certificate (will show PENDING_VALIDATION until you add DNS records in Vercel)"
+  value       = module.acm.certificate_status
+}
+
+output "acm_dns_validation_records" {
+  description = "DNS validation records - ADD THESE TO VERCEL DNS"
+  value       = module.acm.dns_validation_records
+}
+
+# ALB Controller Outputs
+output "alb_controller_role_arn" {
+  description = "IAM role ARN for AWS Load Balancer Controller"
+  value       = module.aws_load_balancer_controller.iam_role_arn
+}
+
+output "alb_controller_status" {
+  description = "Status of ALB controller Helm release"
+  value       = module.aws_load_balancer_controller.helm_release_status
 }

@@ -1,0 +1,64 @@
+global:
+  domain: argocd.example.com  # Will be overridden by Terraform
+
+server:
+  service:
+    type: ClusterIP  # Changed from LoadBalancer - using Ingress instead
+
+  # Remove insecure flag for HTTPS
+  extraArgs: []
+
+  ingress:
+    enabled: false  # We manage ingress via Terraform, not Helm chart
+
+  # Resource limits for server
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+
+configs:
+  params:
+    server.insecure: false  # Enable TLS termination awareness
+    server.rootpath: "/"
+
+  cm:
+    create: true
+    application.instanceLabelKey: argocd.argoproj.io/instance
+
+  rbac:
+    create: true
+    policy.default: role:readonly
+
+dex:
+  enabled: false
+
+redis:
+  enabled: true
+
+controller:
+  replicas: 1
+
+  # Resource limits for controller
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+
+repoServer:
+  replicas: 1
+
+  # Resource limits for repo server
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
