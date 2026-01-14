@@ -104,3 +104,18 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+# variable "create" {
+#   type    = bool
+#   default = true
+# }
+
+variable "partition" {
+  type    = string
+  default = ""      
+}
+
+variable "account_id" {
+  type    = string
+  default = ""      
+}
