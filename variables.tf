@@ -5,7 +5,8 @@ variable "use_iam_role" {
 }
 
 variable "domain_name" {
-  description = "Domain name for the platform (e.g., example.com)"
+  description = "Root domain name for the platform (e.g., plat.navanjane.com)"
   type        = string
-  default     = "yourdomain.com"
+  default     = "plat.navanjane.com"
 }
+
