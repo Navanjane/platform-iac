@@ -31,7 +31,7 @@ output "ingress_enabled" {
 
 output "ingress_hostname" {
   description = "Hostname of the ALB ingress (empty if ingress not enabled)"
-  value       = var.enable_ingress ? try(kubernetes_ingress_v1.argocd[0].status[0].load_balancer[0].ingress[0].hostname, "") : ""
+  value       = var.enable_ingress ? try(data.kubernetes_ingress_v1.argocd[0].status[0].load_balancer[0].ingress[0].hostname, "") : ""
 }
 
 output "domain_name" {
@@ -41,5 +41,10 @@ output "domain_name" {
 
 output "argocd_url" {
   description = "Full URL to access ArgoCD"
-  value       = var.enable_ingress && var.domain_name != "" ? "https://${var.domain_name}" : ""
+  value       = var.enable_ingress && var.domain_name != "" ? "https://${var.domain_name}${var.ingress_path}" : ""
+}
+
+output "ingress_path" {
+  description = "Path for ArgoCD ingress"
+  value       = var.ingress_path
 }

@@ -189,6 +189,9 @@ jobs:
     needs: apply-vpc
     permissions:
       contents: read
+    outputs:
+      cluster_name: ${{ steps.extract-cluster-name.outputs.cluster_name }}
+      cluster_endpoint: ${{ steps.extract-cluster-name.outputs.cluster_endpoint }}
 
     steps:
       - name: Checkout code
@@ -208,6 +211,7 @@ jobs:
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false  # Required to capture raw output
 
       - name: Terraform Init
         run: terraform init
@@ -228,13 +232,40 @@ jobs:
           terraform apply -auto-approve -input=false
         continue-on-error: true
 
+      - name: Extract Cluster Name and Details
+        id: extract-cluster-name
+        run: |
+          echo "📝 Extracting EKS cluster information from Terraform state..."
+
+          # Extract cluster name directly from state (same approach as provision.sh)
+          CLUSTER_NAME=$(terraform state show 'module.eks.module.eks.aws_eks_cluster.this[0]' 2>/dev/null | grep -oP 'name\s+=\s+"\K[^"]+' || echo "platform-eks-dev")
+
+          echo "cluster_name=${CLUSTER_NAME}" >> $GITHUB_OUTPUT
+          echo "✅ Cluster Name: ${CLUSTER_NAME}"
+
+          # Also extract endpoint for verification
+          CLUSTER_ENDPOINT=$(terraform state show 'module.eks.module.eks.aws_eks_cluster.this[0]' 2>/dev/null | grep -oP 'endpoint\s+=\s+"\K[^"]+' || echo "")
+          echo "cluster_endpoint=${CLUSTER_ENDPOINT}" >> $GITHUB_OUTPUT
+          echo "✅ Cluster Endpoint: ${CLUSTER_ENDPOINT}"
+
+          # Cache cluster name to file (for backup)
+          echo "${CLUSTER_NAME}" > .cluster_name
+
+      - name: Upload Cluster Info as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cluster-info
+          path: .cluster_name
+          retention-days: 7
+
       - name: Verify Deployment
         if: success()
         run: |
           echo "✅ EKS deployment completed successfully"
           echo ""
-          echo "📊 Deployment Summary:"
-          terraform output -json | jq -r 'to_entries[] | "  \(.key): \(.value.value)"'
+          echo "📊 EKS Cluster Information:"
+          echo "  Cluster Name: ${{ steps.extract-cluster-name.outputs.cluster_name }}"
+          echo "  Cluster Endpoint: ${{ steps.extract-cluster-name.outputs.cluster_endpoint }}"
 
   generate-kubeconfig:
     name: Generate Kubeconfig
@@ -243,7 +274,7 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -259,43 +290,55 @@ jobs:
           role-skip-session-tagging: true
 
       - name: Generate Kubeconfig
+        env:
+          CLUSTER_NAME: ${{ needs.apply-eks.outputs.cluster_name }}
         run: |
-          echo "📝 Generating kubeconfig for EKS cluster..."
+          echo "📝 Generating kubeconfig for EKS cluster: ${CLUSTER_NAME}..."
           aws eks update-kubeconfig \
             --region ${{ env.AWS_REGION }} \
-            --name platform-eks-dev \
-            --kubeconfig ./kubeconfig-platform-eks-dev
+            --name ${CLUSTER_NAME} \
+            --kubeconfig ./kubeconfig-${CLUSTER_NAME}
           echo "✅ Kubeconfig generated successfully"
-          
+
       - name: Verify Kubeconfig
+        env:
+          CLUSTER_NAME: ${{ needs.apply-eks.outputs.cluster_name }}
         run: |
           echo "🔍 Verifying kubeconfig..."
-          export KUBECONFIG=./kubeconfig-platform-eks-dev
+          export KUBECONFIG=./kubeconfig-${CLUSTER_NAME}
           kubectl version --client
           kubectl cluster-info
-          
+
       - name: Upload Kubeconfig as Artifact
+        env:
+          CLUSTER_NAME: ${{ needs.apply-eks.outputs.cluster_name }}
         uses: actions/upload-artifact@v4
         with:
-          name: kubeconfig-platform-eks-dev
-          path: ./kubeconfig-platform-eks-dev
+          name: kubeconfig-${{ needs.apply-eks.outputs.cluster_name }}
+          path: ./kubeconfig-${{ needs.apply-eks.outputs.cluster_name }}
           retention-days: 7
-          
+
       - name: Kubeconfig Summary
+        env:
+          CLUSTER_NAME: ${{ needs.apply-eks.outputs.cluster_name }}
         run: |
           echo "✅ Kubeconfig generation completed"
+          echo ""
+          echo "📊 Cluster Information:"
+          echo "  Name: ${CLUSTER_NAME}"
+          echo "  Endpoint: ${{ needs.apply-eks.outputs.cluster_endpoint }}"
           echo ""
           echo "📥 Download Instructions:"
           echo "  1. Go to Actions tab -> This workflow run"
           echo "  2. Scroll to Artifacts section"
-          echo "  3. Download 'kubeconfig-platform-eks-dev'"
-          echo "  4. Use: export KUBECONFIG=./kubeconfig-platform-eks-dev"
+          echo "  3. Download 'kubeconfig-${CLUSTER_NAME}'"
+          echo "  4. Use: export KUBECONFIG=./kubeconfig-${CLUSTER_NAME}"
 
 
   verify-cluster:
     name: Verify Kubernetes Cluster
     runs-on: ubuntu-latest
-    needs: generate-kubeconfig
+    needs: [apply-eks, generate-kubeconfig]
     timeout-minutes: 10
     permissions:
       contents: read
@@ -312,9 +355,11 @@ jobs:
           role-skip-session-tagging: true
 
       - name: Download Kubeconfig Artifact
+        env:
+          CLUSTER_NAME: ${{ needs.apply-eks.outputs.cluster_name }}
         uses: actions/download-artifact@v4
         with:
-          name: kubeconfig-platform-eks-dev
+          name: kubeconfig-${{ needs.apply-eks.outputs.cluster_name }}
           path: .
 
       - name: Verify AWS CLI and Credentials
@@ -325,29 +370,37 @@ jobs:
           echo "✅ AWS credentials verified"
 
       - name: Configure kubectl
+        env:
+          CLUSTER_NAME: ${{ needs.apply-eks.outputs.cluster_name }}
         run: |
-          echo "🔧 Configuring kubectl..."
-          export KUBECONFIG=./kubeconfig-platform-eks-dev
+          echo "🔧 Configuring kubectl for cluster: ${CLUSTER_NAME}..."
+          export KUBECONFIG=./kubeconfig-${CLUSTER_NAME}
           kubectl version --client
           echo "✅ kubectl configured successfully"
 
       - name: Verify Cluster Connection
+        env:
+          CLUSTER_NAME: ${{ needs.apply-eks.outputs.cluster_name }}
         run: |
           echo "🔍 Verifying cluster connection..."
-          export KUBECONFIG=./kubeconfig-platform-eks-dev
+          export KUBECONFIG=./kubeconfig-${CLUSTER_NAME}
           kubectl cluster-info
           kubectl get nodes -o wide
-          
+
       - name: List All Pods
+        env:
+          CLUSTER_NAME: ${{ needs.apply-eks.outputs.cluster_name }}
         run: |
           echo "📦 Listing all pods in all namespaces..."
-          export KUBECONFIG=./kubeconfig-platform-eks-dev
+          export KUBECONFIG=./kubeconfig-${CLUSTER_NAME}
           kubectl get pods --all-namespaces -o wide
-          
+
       - name: List System Components
+        env:
+          CLUSTER_NAME: ${{ needs.apply-eks.outputs.cluster_name }}
         run: |
           echo "🔧 Checking system components..."
-          export KUBECONFIG=./kubeconfig-platform-eks-dev
+          export KUBECONFIG=./kubeconfig-${CLUSTER_NAME}
           echo ""
           echo "=== Namespaces ==="
           kubectl get namespaces
@@ -357,13 +410,16 @@ jobs:
           echo ""
           echo "=== DaemonSets in kube-system ==="
           kubectl get daemonsets -n kube-system
-          
+
       - name: Cluster Health Summary
+        env:
+          CLUSTER_NAME: ${{ needs.apply-eks.outputs.cluster_name }}
         run: |
           echo "✅ Kubernetes cluster verification completed"
           echo ""
-          export KUBECONFIG=./kubeconfig-platform-eks-dev
+          export KUBECONFIG=./kubeconfig-${CLUSTER_NAME}
           echo "📊 Cluster Summary:"
+          echo "  Cluster: ${CLUSTER_NAME}"
           echo "  Nodes: $(kubectl get nodes --no-headers | wc -l)"
           echo "  Pods: $(kubectl get pods --all-namespaces --no-headers | wc -l)"
           echo "  Namespaces: $(kubectl get namespaces --no-headers | wc -l)"
@@ -412,13 +468,14 @@ jobs:
           echo "================================================================"
           echo ""
           echo "⚠️ IMPORTANT: Add the DNS validation record(s) above to Vercel DNS"
+          echo "   Domain: plat.navanjane.com"
           echo "   The certificate status will remain PENDING_VALIDATION until you do this"
           echo "   It may take a few minutes after adding the record for AWS to validate"
 
   deploy-alb-controller:
     name: Deploy AWS Load Balancer Controller
     runs-on: ubuntu-latest
-    needs: generate-kubeconfig
+    needs: [apply-eks, generate-kubeconfig]
     timeout-minutes: 15
     permissions:
       contents: read
@@ -438,9 +495,11 @@ jobs:
           role-skip-session-tagging: true
 
       - name: Download Kubeconfig Artifact
+        env:
+          CLUSTER_NAME: ${{ needs.apply-eks.outputs.cluster_name }}
         uses: actions/download-artifact@v4
         with:
-          name: kubeconfig-platform-eks-dev
+          name: kubeconfig-${{ needs.apply-eks.outputs.cluster_name }}
           path: .
 
       - name: Setup Terraform
@@ -458,9 +517,11 @@ jobs:
           echo "✅ AWS Load Balancer Controller deployed"
 
       - name: Verify Controller Deployment
+        env:
+          CLUSTER_NAME: ${{ needs.apply-eks.outputs.cluster_name }}
         run: |
           echo "🔍 Verifying AWS Load Balancer Controller..."
-          export KUBECONFIG=./kubeconfig-platform-eks-dev
+          export KUBECONFIG=./kubeconfig-${CLUSTER_NAME}
           kubectl wait --for=condition=Ready pods -l app.kubernetes.io/name=aws-load-balancer-controller -n kube-system --timeout=300s || echo "⚠️ Controller pods not ready yet"
           kubectl get deployment aws-load-balancer-controller -n kube-system
 
@@ -513,23 +574,25 @@ jobs:
           echo "📋 NEXT STEP - CREATE CNAME IN VERCEL DNS:"
           echo "================================================================"
           echo "Type: CNAME"
-          echo "Name: argocd"
+          echo "Name: plat (or @ for root domain)"
           echo "Value: $ALB_HOSTNAME"
           echo "TTL: 300 (or default)"
           echo "================================================================"
           echo ""
           echo "🌐 After adding CNAME, access ArgoCD at:"
-          terraform output -raw argocd_url || echo "argocd.yourdomain.com"
+          terraform output -raw argocd_url || echo "https://plat.navanjane.com/argocd"
           echo ""
           echo ""
           echo "📊 Certificate Status:"
           echo "  $(terraform output -raw acm_certificate_status)"
           echo "  ⚠️ If PENDING_VALIDATION, add DNS validation records from deploy-acm job"
+          echo ""
+          echo "📝 Note: ArgoCD is accessible at path /argocd on the platform domain"
 
   verify-argocd-pods:
     name: Verify ArgoCD Pods
     runs-on: ubuntu-latest
-    needs: deploy-argocd
+    needs: [apply-eks, deploy-argocd]
     timeout-minutes: 15
     permissions:
       contents: read
@@ -546,15 +609,19 @@ jobs:
           role-skip-session-tagging: true
 
       - name: Download Kubeconfig Artifact
+        env:
+          CLUSTER_NAME: ${{ needs.apply-eks.outputs.cluster_name }}
         uses: actions/download-artifact@v4
         with:
-          name: kubeconfig-platform-eks-dev
+          name: kubeconfig-${{ needs.apply-eks.outputs.cluster_name }}
           path: .
 
       - name: Wait for ArgoCD Namespace
+        env:
+          CLUSTER_NAME: ${{ needs.apply-eks.outputs.cluster_name }}
         run: |
           echo "⏳ Waiting for ArgoCD namespace to be created..."
-          export KUBECONFIG=./kubeconfig-platform-eks-dev
+          export KUBECONFIG=./kubeconfig-${CLUSTER_NAME}
 
           timeout=300
           elapsed=0
@@ -573,9 +640,11 @@ jobs:
           echo "✅ ArgoCD namespace found"
 
       - name: Wait for ArgoCD Pods
+        env:
+          CLUSTER_NAME: ${{ needs.apply-eks.outputs.cluster_name }}
         run: |
           echo "⏳ Waiting for ArgoCD pods to be ready..."
-          export KUBECONFIG=./kubeconfig-platform-eks-dev
+          export KUBECONFIG=./kubeconfig-${CLUSTER_NAME}
 
           echo "Waiting for ArgoCD pods to be created..."
           kubectl wait --for=condition=Ready pods --all -n argocd --timeout=600s || true
@@ -585,9 +654,11 @@ jobs:
           kubectl get pods -n argocd
 
       - name: Verify ArgoCD Components
+        env:
+          CLUSTER_NAME: ${{ needs.apply-eks.outputs.cluster_name }}
         run: |
           echo "🔍 Verifying ArgoCD components..."
-          export KUBECONFIG=./kubeconfig-platform-eks-dev
+          export KUBECONFIG=./kubeconfig-${CLUSTER_NAME}
 
           echo ""
           echo "=== ArgoCD Pods ==="
@@ -606,18 +677,22 @@ jobs:
           kubectl get statefulsets -n argocd
 
       - name: Check ArgoCD Server Status
+        env:
+          CLUSTER_NAME: ${{ needs.apply-eks.outputs.cluster_name }}
         run: |
           echo "🔍 Checking ArgoCD Server status..."
-          export KUBECONFIG=./kubeconfig-platform-eks-dev
+          export KUBECONFIG=./kubeconfig-${CLUSTER_NAME}
 
           # Check if argocd-server deployment exists and is ready
           kubectl rollout status deployment/argocd-server -n argocd --timeout=300s || echo "⚠️ ArgoCD server not fully ready yet"
 
       - name: Get ArgoCD Access Information
+        env:
+          CLUSTER_NAME: ${{ needs.apply-eks.outputs.cluster_name }}
         run: |
           echo "📋 ArgoCD Access Information"
           echo "================================"
-          export KUBECONFIG=./kubeconfig-platform-eks-dev
+          export KUBECONFIG=./kubeconfig-${CLUSTER_NAME}
 
           # Get LoadBalancer information
           echo ""
@@ -641,11 +716,14 @@ jobs:
           echo ""
 
       - name: Verification Summary
+        env:
+          CLUSTER_NAME: ${{ needs.apply-eks.outputs.cluster_name }}
         run: |
           echo "✅ ArgoCD verification completed"
           echo ""
-          export KUBECONFIG=./kubeconfig-platform-eks-dev
+          export KUBECONFIG=./kubeconfig-${CLUSTER_NAME}
           echo "📊 ArgoCD Summary:"
+          echo "  Cluster: ${CLUSTER_NAME}"
           echo "  Namespace: argocd"
           echo "  Pods: $(kubectl get pods -n argocd --no-headers 2>/dev/null | wc -l)"
           echo "  Ready Pods: $(kubectl get pods -n argocd --field-selector=status.phase=Running --no-headers 2>/dev/null | wc -l)"

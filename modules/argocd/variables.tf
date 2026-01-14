@@ -36,9 +36,15 @@ variable "enable_ingress" {
 }
 
 variable "domain_name" {
-  description = "Domain name for ArgoCD (e.g., argocd.yourdomain.com)"
+  description = "Root domain name for the platform (e.g., plat.navanjane.com)"
   type        = string
   default     = ""
+}
+
+variable "ingress_path" {
+  description = "Path for ArgoCD ingress (e.g., /argocd)"
+  type        = string
+  default     = "/argocd"
 }
 
 variable "certificate_arn" {
@@ -47,28 +53,10 @@ variable "certificate_arn" {
   default     = ""
 }
 
-variable "route53_zone_id" {
-  description = "Route53 hosted zone ID for DNS record creation"
-  type        = string
-  default     = ""
-}
-
-variable "create_dns_record" {
-  description = "Whether to create Route53 DNS record automatically"
-  type        = bool
-  default     = true
-}
-
 variable "alb_group_name" {
   description = "ALB group name for sharing ALB across multiple ingresses"
   type        = string
   default     = "platform-alb"
-}
-
-variable "alb_zone_id" {
-  description = "Zone ID of the ALB for Route53 alias record (us-east-1: Z35SXDOTRQ7X7K)"
-  type        = string
-  default     = "Z35SXDOTRQ7X7K"
 }
 
 variable "tags" {

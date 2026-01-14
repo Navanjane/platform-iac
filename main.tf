@@ -71,8 +71,8 @@ module "eks" {
 module "acm" {
   source = "./modules/acm"
 
-  domain_name               = "argocd.${var.domain_name}"
-  subject_alternative_names = [] # Add more subdomains if needed
+  domain_name               = var.domain_name # Root domain for all platform services
+  subject_alternative_names = []              # Add more domains if needed (e.g., *.plat.navanjane.com)
   environment               = "dev"
 
   # Skip automatic DNS validation (Vercel manages DNS)
@@ -82,7 +82,7 @@ module "acm" {
     Environment = "dev"
     Project     = "platform-iac"
     ManagedBy   = "terraform"
-    Application = "argocd"
+    Application = "platform"
   }
 
   depends_on = [module.vpc]
@@ -92,7 +92,7 @@ module "acm" {
 module "aws_load_balancer_controller" {
   source = "./modules/aws-load-balancer-controller"
 
-  cluster_name      = try(module.eks.cluster_id, null)
+  cluster_name      = "platform-eks-dev"  # Hardcoded to avoid null during targeted applies
   vpc_id            = module.vpc.vpc_id
   oidc_provider_arn = try(module.eks.oidc_provider_arn, null)
   oidc_provider     = try(module.eks.oidc_provider, null)
@@ -116,15 +116,15 @@ module "aws_load_balancer_controller" {
 }
 
 # ArgoCD Module - GitOps Continuous Delivery
-# NOTE: DNS managed in Vercel - create CNAME record pointing to ALB hostname
+# NOTE: Ingress managed by ArgoCD Helm chart, DNS managed in Vercel
 module "argocd" {
   source = "./modules/argocd"
 
-  # Enable ingress with ALB
-  enable_ingress    = true
-  domain_name       = "argocd.${var.domain_name}"
-  certificate_arn   = module.acm.certificate_arn
-  create_dns_record = false # DNS managed in Vercel, not Route53
+  # Enable ingress with ALB (managed by Helm chart)
+  enable_ingress  = true
+  domain_name     = var.domain_name # Root domain (plat.navanjane.com)
+  ingress_path    = "/argocd"       # Path-based routing
+  certificate_arn = module.acm.certificate_arn
 
   # ALB configuration
   alb_group_name = "platform-alb-dev"
@@ -248,13 +248,18 @@ output "argocd_url" {
 }
 
 output "argocd_alb_hostname" {
-  description = "ALB hostname for ArgoCD - CREATE CNAME IN VERCEL: argocd → <this-hostname>"
+  description = "ALB hostname - CREATE CNAME IN VERCEL: plat.navanjane.com → <this-hostname>"
   value       = module.argocd.ingress_hostname
 }
 
 output "domain_name" {
-  description = "The domain name"
+  description = "Platform root domain"
   value       = var.domain_name
+}
+
+output "argocd_ingress_path" {
+  description = "Path for ArgoCD access"
+  value       = module.argocd.ingress_path
 }
 
 # ACM Outputs

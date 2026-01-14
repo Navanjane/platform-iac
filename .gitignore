@@ -87,3 +87,12 @@ tmp/
 # Documentation builds
 docs/_build/
 site/
+
+# Kubeconfig files
+kubeconfig-*
+*.kubeconfig
+
+# Provisioning scripts (may contain environment-specific logic)
+provision.sh
+deploy.sh
+destroy.sh
