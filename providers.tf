@@ -23,7 +23,7 @@ provider "kubernetes" {
       "eks",
       "get-token",
       "--cluster-name",
-      try(coalesce(module.eks.cluster_id, "dummy-cluster"), "dummy-cluster"),
+      "platform-eks-dev",  # Hardcoded to avoid null during targeted applies
       "--region",
       "us-east-1"
     ]
@@ -42,7 +42,7 @@ provider "helm" {
         "eks",
         "get-token",
         "--cluster-name",
-        try(coalesce(module.eks.cluster_id, "dummy-cluster"), "dummy-cluster"),
+        "platform-eks-dev",  # Hardcoded to avoid null during targeted applies
         "--region",
         "us-east-1"
       ]
