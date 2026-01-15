@@ -29,8 +29,8 @@ ingress:
     alb.ingress.kubernetes.io/unhealthy-threshold-count: "2"
     alb.ingress.kubernetes.io/success-codes: "200"
 
-    # Tags
-    alb.ingress.kubernetes.io/tags: Name=platform-alb,Application=nginx-test,ManagedBy=terraform
+    # Tags (must match other ingresses sharing this ALB group)
+    alb.ingress.kubernetes.io/tags: Name=platform-alb,ManagedBy=terraform
 
 resources:
   limits:
