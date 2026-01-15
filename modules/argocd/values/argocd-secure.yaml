@@ -39,8 +39,8 @@ server:
       # ALB Attributes
       alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=60,routing.http2.enabled=true,routing.http.drop_invalid_header_fields.enabled=true
 
-      # Tags
-      alb.ingress.kubernetes.io/tags: Name=platform-alb,Application=argocd,ManagedBy=terraform
+      # Tags (must match other ingresses sharing this ALB group)
+      alb.ingress.kubernetes.io/tags: Name=platform-alb,ManagedBy=terraform
 
     # No hostname restriction - allows access via ALB hostname or custom domain
     hosts: []
