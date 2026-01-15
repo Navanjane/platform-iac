@@ -6,6 +6,8 @@ resource "helm_release" "nginx" {
   namespace        = var.namespace
   create_namespace = var.create_namespace
   version          = var.chart_version
+  timeout          = 600  # 10 minutes
+  wait             = false # Don't wait for pods - allows debugging separately
 
   values = [file("${path.module}/values/nginx.yaml")]
 
