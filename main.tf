@@ -142,6 +142,22 @@ module "argocd" {
   ]
 }
 
+# Nginx Test Module - For testing ALB ingress
+module "nginx_test" {
+  source = "./modules/nginx-test"
+
+  domain_name     = var.domain_name
+  ingress_path    = "/test"
+  certificate_arn = module.acm.certificate_arn
+  alb_group_name  = "platform-alb-dev"
+
+  depends_on = [
+    module.eks,
+    module.aws_load_balancer_controller,
+    module.acm
+  ]
+}
+
 # ========================================
 # Outputs
 # ========================================
@@ -287,4 +303,15 @@ output "alb_controller_role_arn" {
 output "alb_controller_status" {
   description = "Status of ALB controller Helm release"
   value       = module.aws_load_balancer_controller.helm_release_status
+}
+
+# Nginx Test Outputs
+output "nginx_test_namespace" {
+  description = "Namespace where nginx test is deployed"
+  value       = module.nginx_test.namespace
+}
+
+output "nginx_test_url" {
+  description = "URL to access nginx test"
+  value       = "https://${var.domain_name}/test"
 }
