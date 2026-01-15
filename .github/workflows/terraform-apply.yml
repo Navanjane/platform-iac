@@ -589,10 +589,56 @@ jobs:
           echo ""
           echo "📝 Note: ArgoCD is accessible at path /argocd on the platform domain"
 
+  deploy-nginx-test:
+    name: Deploy Nginx Test
+    runs-on: ubuntu-latest
+    needs: [deploy-alb-controller, deploy-acm]
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_TERRAFORM_ROLE_ARN }}
+          role-duration-seconds: 3600
+          role-skip-session-tagging: true
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Deploy Nginx Test Module
+        run: |
+          echo "📦 Deploying Nginx Test with Ingress..."
+          terraform apply -target=module.nginx_test -auto-approve -input=false
+          echo "✅ Nginx Test deployment completed"
+
+      - name: Display Nginx Test URL
+        if: success()
+        run: |
+          echo "✅ Nginx Test Access Information"
+          echo "================================"
+          echo ""
+          echo "🌐 Nginx Test URL: https://${TF_VAR_domain_name}/test"
+          echo ""
+          echo "📝 Note: Nginx is accessible at path /test on the platform domain"
+
   verify-argocd-pods:
     name: Verify ArgoCD Pods
     runs-on: ubuntu-latest
-    needs: [apply-eks, deploy-argocd]
+    needs: [apply-eks, deploy-argocd, deploy-nginx-test]
     timeout-minutes: 15
     permissions:
       contents: read
