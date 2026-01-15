@@ -20,24 +20,21 @@ server:
       alb.ingress.kubernetes.io/target-type: ip
       alb.ingress.kubernetes.io/group.name: platform-alb-dev
 
-      # SSL/TLS Configuration
-      alb.ingress.kubernetes.io/certificate-arn: ""  # Will be overridden by Terraform
-      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
-      alb.ingress.kubernetes.io/ssl-redirect: "443"
-      alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS13-1-2-2021-06
+      # SSL/TLS Configuration (HTTP only for testing - add HTTPS later with valid cert)
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
 
-      # Backend Protocol
-      alb.ingress.kubernetes.io/backend-protocol: HTTPS
+      # Backend Protocol - HTTP (ArgoCD runs in insecure mode)
+      alb.ingress.kubernetes.io/backend-protocol: HTTP
 
-      # Health Check
+      # Health Check - HTTP
       alb.ingress.kubernetes.io/healthcheck-path: /argocd/healthz
       alb.ingress.kubernetes.io/healthcheck-port: "8080"
-      alb.ingress.kubernetes.io/healthcheck-protocol: HTTPS
+      alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
       alb.ingress.kubernetes.io/healthcheck-interval-seconds: "15"
       alb.ingress.kubernetes.io/healthcheck-timeout-seconds: "5"
       alb.ingress.kubernetes.io/healthy-threshold-count: "2"
       alb.ingress.kubernetes.io/unhealthy-threshold-count: "2"
-      alb.ingress.kubernetes.io/success-codes: "200,404"
+      alb.ingress.kubernetes.io/success-codes: "200,302"
 
       # ALB Attributes
       alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=60,routing.http2.enabled=true,routing.http.drop_invalid_header_fields.enabled=true
@@ -64,7 +61,7 @@ server:
 
 configs:
   params:
-    server.insecure: false     # Enable TLS termination awareness
+    server.insecure: true      # HTTP mode for testing (change to false for HTTPS)
     server.rootpath: "/argocd" # Base path for path-based routing
     server.basehref: "/argocd" # Base URL path
 
