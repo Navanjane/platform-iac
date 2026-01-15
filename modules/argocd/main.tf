@@ -21,6 +21,7 @@ resource "helm_release" "argocd" {
   )
 
   # Set domain and ingress configuration dynamically if ingress is enabled
+  # Note: hosts is intentionally not set to allow access via ALB hostname or custom domain
   set = var.enable_ingress && var.domain_name != "" ? [
     {
       name  = "global.domain"
@@ -29,10 +30,6 @@ resource "helm_release" "argocd" {
     {
       name  = "server.config.url"
       value = "https://${var.domain_name}${var.ingress_path}"
-    },
-    {
-      name  = "server.ingress.hosts[0]"
-      value = var.domain_name
     },
     {
       name  = "server.ingress.paths[0]"
