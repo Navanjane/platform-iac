@@ -525,8 +525,8 @@ jobs:
           kubectl wait --for=condition=Ready pods -l app.kubernetes.io/name=aws-load-balancer-controller -n kube-system --timeout=300s || echo "⚠️ Controller pods not ready yet"
           kubectl get deployment aws-load-balancer-controller -n kube-system
 
-  deploy-argocd:
-    name: Deploy ArgoCD with Ingress
+  deploy-applications:
+    name: Deploy ArgoCD and Nginx Test
     runs-on: ubuntu-latest
     needs: [deploy-alb-controller, deploy-acm]
     timeout-minutes: 30
@@ -559,12 +559,18 @@ jobs:
         run: |
           echo "📦 Deploying ArgoCD with Ingress and ALB..."
           terraform apply -target=module.argocd -auto-approve -input=false
-          echo "✅ ArgoCD deployment with Ingress completed"
+          echo "✅ ArgoCD deployment completed"
+
+      - name: Deploy Nginx Test Module
+        run: |
+          echo "📦 Deploying Nginx Test with Ingress..."
+          terraform apply -target=module.nginx_test -auto-approve -input=false
+          echo "✅ Nginx Test deployment completed"
 
       - name: Display Access Information
         if: success()
         run: |
-          echo "✅ ArgoCD Access Information"
+          echo "✅ Application Access Information"
           echo "================================"
           echo ""
           echo "🔗 ALB Hostname:"
@@ -579,66 +585,18 @@ jobs:
           echo "TTL: 300 (or default)"
           echo "================================================================"
           echo ""
-          echo "🌐 After adding CNAME, access ArgoCD at:"
-          terraform output -raw argocd_url || echo "https://plat.navanjane.com/argocd"
-          echo ""
+          echo "🌐 Access URLs (via ALB hostname or custom domain):"
+          echo "  ArgoCD:     https://$ALB_HOSTNAME/argocd"
+          echo "  Nginx Test: https://$ALB_HOSTNAME/test"
           echo ""
           echo "📊 Certificate Status:"
           echo "  $(terraform output -raw acm_certificate_status)"
           echo "  ⚠️ If PENDING_VALIDATION, add DNS validation records from deploy-acm job"
-          echo ""
-          echo "📝 Note: ArgoCD is accessible at path /argocd on the platform domain"
-
-  deploy-nginx-test:
-    name: Deploy Nginx Test
-    runs-on: ubuntu-latest
-    needs: [deploy-alb-controller, deploy-acm]
-    timeout-minutes: 15
-    permissions:
-      contents: read
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: ${{ secrets.AWS_TERRAFORM_ROLE_ARN }}
-          role-duration-seconds: 3600
-          role-skip-session-tagging: true
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ${{ env.TF_VERSION }}
-
-      - name: Terraform Init
-        run: terraform init
-
-      - name: Deploy Nginx Test Module
-        run: |
-          echo "📦 Deploying Nginx Test with Ingress..."
-          terraform apply -target=module.nginx_test -auto-approve -input=false
-          echo "✅ Nginx Test deployment completed"
-
-      - name: Display Nginx Test URL
-        if: success()
-        run: |
-          echo "✅ Nginx Test Access Information"
-          echo "================================"
-          echo ""
-          echo "🌐 Nginx Test URL: https://${TF_VAR_domain_name}/test"
-          echo ""
-          echo "📝 Note: Nginx is accessible at path /test on the platform domain"
 
   verify-argocd-pods:
     name: Verify ArgoCD Pods
     runs-on: ubuntu-latest
-    needs: [apply-eks, deploy-argocd, deploy-nginx-test]
+    needs: [apply-eks, deploy-applications]
     timeout-minutes: 15
     permissions:
       contents: read
