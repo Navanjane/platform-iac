@@ -96,3 +96,7 @@ kubeconfig-*
 provision.sh
 deploy.sh
 destroy.sh
+
+# Blog drafts
+blog-post.md
+blog-*.md
