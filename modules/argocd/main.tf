@@ -42,7 +42,7 @@ resource "helm_release" "argocd" {
     },
     {
       name  = "server.ingress.annotations.alb\\.ingress\\.kubernetes\\.io/healthcheck-path"
-      value = "${var.ingress_path}/healthz"
+      value = "/healthz"
     }
   ] : []
 }

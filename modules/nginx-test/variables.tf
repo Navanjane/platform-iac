@@ -19,7 +19,7 @@ variable "create_namespace" {
 variable "chart_version" {
   description = "Version of the nginx Helm chart"
   type        = string
-  default     = "18.1.0"
+  default     = "22.4.3"
 }
 
 variable "domain_name" {
