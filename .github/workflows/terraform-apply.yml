@@ -463,7 +463,7 @@ jobs:
   deploy-alb-controller:
     name: Deploy AWS Load Balancer Controller
     runs-on: ubuntu-latest
-    needs: [apply-eks, generate-kubeconfig]
+    needs: [deploy-acm, generate-kubeconfig]
     timeout-minutes: 15
     permissions:
       contents: read
