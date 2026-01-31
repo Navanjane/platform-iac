@@ -20,13 +20,14 @@ server:
       alb.ingress.kubernetes.io/target-type: ip
       alb.ingress.kubernetes.io/group.name: platform-alb-dev
 
-      # SSL/TLS Configuration (HTTP only for testing - add HTTPS later with valid cert)
-      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+      # SSL/TLS Configuration - HTTPS with HTTP redirect
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS": 443}, {"HTTP": 80}]'
+      alb.ingress.kubernetes.io/ssl-redirect: "443"
 
-      # Backend Protocol - HTTP (ArgoCD runs in insecure mode)
+      # Backend Protocol - HTTP (TLS terminates at ALB, ArgoCD runs in insecure mode)
       alb.ingress.kubernetes.io/backend-protocol: HTTP
 
-      # Health Check - HTTP
+      # Health Check
       alb.ingress.kubernetes.io/healthcheck-path: /healthz
       alb.ingress.kubernetes.io/healthcheck-port: traffic-port
       alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
@@ -61,7 +62,7 @@ server:
 
 configs:
   params:
-    server.insecure: true      # HTTP mode for testing (change to false for HTTPS)
+    server.insecure: true      # TLS terminates at ALB, backend runs HTTP
     server.rootpath: "/argocd" # Base path for path-based routing
     server.basehref: "/argocd" # Base URL path
     server.disable.auth: false # Keep auth enabled
