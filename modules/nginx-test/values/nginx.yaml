@@ -1,6 +1,24 @@
 service:
   type: ClusterIP
 
+# Custom server block to handle /test path
+serverBlock: |-
+  server {
+    listen 8080;
+
+    location /test {
+      alias /app;
+      index index.html;
+      try_files $uri $uri/ /index.html;
+    }
+
+    location / {
+      root /app;
+      index index.html;
+      try_files $uri $uri/ /index.html;
+    }
+  }
+
 ingress:
   enabled: true
   ingressClassName: alb

@@ -20,7 +20,7 @@ data "aws_iam_policy_document" "terraform_trust" {
 resource "aws_iam_role" "terraform" {
   name                 = var.role_name
   assume_role_policy   = data.aws_iam_policy_document.terraform_trust.json
-  max_session_duration = 7200  # 2 hours - matches GitHub Actions workflow
+  max_session_duration = 7200 # 2 hours - matches GitHub Actions workflow
 
   tags = merge(var.tags, {
     Purpose = "Terraform provisioning"
@@ -74,8 +74,8 @@ resource "aws_iam_user_policy" "bootstrap_assume_role" {
     Version = "2012-10-17"
     Statement = [
       {
-        Effect = "Allow"
-        Action = "sts:AssumeRole"
+        Effect   = "Allow"
+        Action   = "sts:AssumeRole"
         Resource = aws_iam_role.terraform.arn
       }
     ]

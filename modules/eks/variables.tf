@@ -112,10 +112,10 @@ variable "tags" {
 
 variable "partition" {
   type    = string
-  default = ""      
+  default = ""
 }
 
 variable "account_id" {
   type    = string
-  default = ""      
+  default = ""
 }

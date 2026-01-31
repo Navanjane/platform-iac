@@ -13,7 +13,7 @@ resource "helm_release" "argocd" {
       file("${path.module}/values/argocd-secure.yaml"),
       file(var.values_file)
     ] : [file("${path.module}/values/argocd-secure.yaml")]
-  ) : (
+    ) : (
     var.values_file != "" ? [
       file("${path.module}/values/argocd.yaml"),
       file(var.values_file)
