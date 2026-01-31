@@ -10,13 +10,13 @@ variable "subject_alternative_names" {
 }
 
 variable "route53_zone_id" {
-  description = "Route53 hosted zone ID for DNS validation (optional - only needed if skip_dns_validation = false)"
+  description = "Route53 hosted zone ID for DNS validation"
   type        = string
   default     = ""
 }
 
 variable "skip_dns_validation" {
-  description = "Skip automatic DNS validation via Route53 (set true if DNS managed externally like Vercel)"
+  description = "Skip automatic DNS validation via Route53"
   type        = bool
   default     = false
 }
