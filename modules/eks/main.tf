@@ -3,7 +3,7 @@
 # using the official terraform-aws-modules/eks/aws module
 
 module "eks" {
-  source  = "terraform-aws-modules/eks/aws"
+  source = "terraform-aws-modules/eks/aws"
   # version = "21.10.1"
   version = "21.14.0"
 
@@ -46,7 +46,7 @@ module "eks" {
     general = {
       # Use auto-generated names to stay within AWS limits
       use_name_prefix = true
-      
+
       instance_types = var.node_group_instance_types
       capacity_type  = var.node_group_capacity_type
 

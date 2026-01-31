@@ -1,6 +1,12 @@
 # Main Terraform configuration file
 # This file orchestrates all modules and resources for the platform infrastructure
 
+# Look up existing Route53 hosted zone
+data "aws_route53_zone" "platform" {
+  name         = var.hosted_zone_name
+  private_zone = false
+}
+
 # IAM Module - Creates terraform execution role and policies
 module "iam" {
   source = "./modules/iam"
@@ -67,16 +73,16 @@ module "eks" {
 }
 
 # ACM Certificate Module - SSL/TLS Certificate
-# NOTE: Certificate validation is MANUAL - you must add DNS validation records in Vercel
+# DNS validation is automatic via Route53
 module "acm" {
   source = "./modules/acm"
 
-  domain_name               = var.domain_name # Root domain for all platform services
-  subject_alternative_names = []              # Add more domains if needed (e.g., *.plat.navanjane.com)
+  domain_name               = var.domain_name
+  subject_alternative_names = []
   environment               = "dev"
 
-  # Skip automatic DNS validation (Vercel manages DNS)
-  skip_dns_validation = true
+  skip_dns_validation = false
+  route53_zone_id     = data.aws_route53_zone.platform.zone_id
 
   tags = {
     Environment = "dev"
@@ -92,7 +98,7 @@ module "acm" {
 module "aws_load_balancer_controller" {
   source = "./modules/aws-load-balancer-controller"
 
-  cluster_name      = "platform-eks-dev"  # Hardcoded to avoid null during targeted applies
+  cluster_name      = "platform-eks-dev" # Hardcoded to avoid null during targeted applies
   vpc_id            = module.vpc.vpc_id
   oidc_provider_arn = try(module.eks.oidc_provider_arn, null)
   oidc_provider     = try(module.eks.oidc_provider, null)
@@ -116,14 +122,13 @@ module "aws_load_balancer_controller" {
 }
 
 # ArgoCD Module - GitOps Continuous Delivery
-# NOTE: Ingress managed by ArgoCD Helm chart, DNS managed in Vercel
 module "argocd" {
   source = "./modules/argocd"
 
   # Enable ingress with ALB (managed by Helm chart)
   enable_ingress  = true
-  domain_name     = var.domain_name # Root domain (plat.navanjane.com)
-  ingress_path    = "/argocd"       # Path-based routing
+  domain_name     = var.domain_name
+  ingress_path    = "/argocd"
   certificate_arn = module.acm.certificate_arn
 
   # ALB configuration
@@ -156,6 +161,18 @@ module "nginx_test" {
     module.aws_load_balancer_controller,
     module.acm
   ]
+}
+
+# Route53 Module - DNS record pointing to ALB
+module "route53" {
+  source = "./modules/route53"
+
+  zone_id      = data.aws_route53_zone.platform.zone_id
+  domain_name  = var.domain_name
+  alb_dns_name = module.argocd.ingress_hostname
+  environment  = "dev"
+
+  depends_on = [module.argocd]
 }
 
 # ========================================
@@ -264,7 +281,7 @@ output "argocd_url" {
 }
 
 output "argocd_alb_hostname" {
-  description = "ALB hostname - CREATE CNAME IN VERCEL: plat.navanjane.com → <this-hostname>"
+  description = "ALB hostname for the platform"
   value       = module.argocd.ingress_hostname
 }
 
@@ -285,13 +302,29 @@ output "acm_certificate_arn" {
 }
 
 output "acm_certificate_status" {
-  description = "Status of the ACM certificate (will show PENDING_VALIDATION until you add DNS records in Vercel)"
+  description = "Status of the ACM certificate"
   value       = module.acm.certificate_status
 }
 
 output "acm_dns_validation_records" {
-  description = "DNS validation records - ADD THESE TO VERCEL DNS"
+  description = "DNS validation records for the certificate"
   value       = module.acm.dns_validation_records
+}
+
+# Route53 Outputs
+output "route53_zone_id" {
+  description = "Route53 hosted zone ID"
+  value       = data.aws_route53_zone.platform.zone_id
+}
+
+output "route53_name_servers" {
+  description = "Route53 hosted zone name servers"
+  value       = data.aws_route53_zone.platform.name_servers
+}
+
+output "route53_record_fqdn" {
+  description = "FQDN of the platform DNS record"
+  value       = module.route53.record_fqdn
 }
 
 # ALB Controller Outputs

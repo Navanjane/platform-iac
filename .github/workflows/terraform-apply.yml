@@ -456,21 +456,9 @@ jobs:
 
       - name: Deploy ACM Module
         run: |
-          echo "📦 Deploying ACM certificate (manual DNS validation required)..."
+          echo "📦 Deploying ACM certificate (auto-validated via Route53)..."
           terraform apply -target=module.acm -auto-approve -input=false
-          echo "✅ ACM certificate created (status: PENDING_VALIDATION)"
-
-      - name: Output DNS Validation Records
-        run: |
-          echo "📋 DNS VALIDATION RECORDS - ADD THESE TO VERCEL DNS:"
-          echo "================================================================"
-          terraform output -json acm_dns_validation_records | jq -r '.[] | "Type: \(.type)\nName: \(.name)\nValue: \(.value)\n"'
-          echo "================================================================"
-          echo ""
-          echo "⚠️ IMPORTANT: Add the DNS validation record(s) above to Vercel DNS"
-          echo "   Domain: plat.navanjane.com"
-          echo "   The certificate status will remain PENDING_VALIDATION until you do this"
-          echo "   It may take a few minutes after adding the record for AWS to validate"
+          echo "✅ ACM certificate created and validated via Route53"
 
   deploy-alb-controller:
     name: Deploy AWS Load Balancer Controller
@@ -620,6 +608,42 @@ jobs:
           echo ""
           ALB_HOSTNAME=$(terraform output -raw argocd_alb_hostname || echo "ALB not ready yet")
           echo "🌐 Access URL: https://$ALB_HOSTNAME/test"
+
+  deploy-route53:
+    name: Deploy Route53 DNS Record
+    runs-on: ubuntu-latest
+    needs: [deploy-argocd]
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_TERRAFORM_ROLE_ARN }}
+          role-duration-seconds: 3600
+          role-skip-session-tagging: true
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Deploy Route53 DNS Record
+        run: |
+          echo "📦 Deploying Route53 DNS record..."
+          terraform apply -target=module.route53 -auto-approve -input=false
+          echo "✅ Route53 DNS record created"
 
   verify-argocd-pods:
     name: Verify ArgoCD Pods

@@ -5,8 +5,14 @@ variable "use_iam_role" {
 }
 
 variable "domain_name" {
-  description = "Root domain name for the platform (e.g., plat.navanjane.com)"
+  description = "Root domain name for the platform (e.g., plat.devopsforge.xyz)"
   type        = string
-  default     = "plat.navanjane.com"
+  default     = "plat.devopsforge.xyz"
+}
+
+variable "hosted_zone_name" {
+  description = "Name of the existing Route53 hosted zone"
+  type        = string
+  default     = "devopsforge.xyz"
 }
 

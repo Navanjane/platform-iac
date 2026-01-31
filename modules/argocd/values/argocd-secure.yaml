@@ -1,5 +1,5 @@
 global:
-  domain: plat.navanjane.com  # Will be overridden by Terraform
+  domain: plat.devopsforge.xyz  # Will be overridden by Terraform
 
 server:
   service:
@@ -64,6 +64,9 @@ configs:
     server.insecure: true      # HTTP mode for testing (change to false for HTTPS)
     server.rootpath: "/argocd" # Base path for path-based routing
     server.basehref: "/argocd" # Base URL path
+    server.disable.auth: false # Keep auth enabled
+    server.staticassets: /shared/app # Static assets path
+    server.x.frame.options: sameorigin # X-Frame-Options header
 
   cm:
     create: true

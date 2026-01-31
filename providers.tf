@@ -23,7 +23,7 @@ provider "kubernetes" {
       "eks",
       "get-token",
       "--cluster-name",
-      "platform-eks-dev",  # Hardcoded to avoid null during targeted applies
+      "platform-eks-dev", # Hardcoded to avoid null during targeted applies
       "--region",
       "us-east-1"
     ]
@@ -42,7 +42,7 @@ provider "helm" {
         "eks",
         "get-token",
         "--cluster-name",
-        "platform-eks-dev",  # Hardcoded to avoid null during targeted applies
+        "platform-eks-dev", # Hardcoded to avoid null during targeted applies
         "--region",
         "us-east-1"
       ]
