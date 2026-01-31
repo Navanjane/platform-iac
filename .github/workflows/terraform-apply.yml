@@ -516,7 +516,7 @@ jobs:
   deploy-argocd:
     name: Deploy ArgoCD
     runs-on: ubuntu-latest
-    needs: [deploy-alb-controller, deploy-acm]
+    needs: [deploy-route53]
     timeout-minutes: 20
     permissions:
       contents: read
