@@ -31,13 +31,14 @@ ingress:
     alb.ingress.kubernetes.io/target-type: ip
     alb.ingress.kubernetes.io/group.name: platform-alb-dev
 
-    # SSL/TLS Configuration (HTTP only for testing - add HTTPS later with valid cert)
-    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+    # SSL/TLS Configuration - HTTPS with HTTP redirect
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS": 443}, {"HTTP": 80}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
 
     # Backend Protocol - HTTP (TLS terminates at ALB)
     alb.ingress.kubernetes.io/backend-protocol: HTTP
 
-    # Health Check - HTTP on root path (nginx default)
+    # Health Check
     alb.ingress.kubernetes.io/healthcheck-path: /
     alb.ingress.kubernetes.io/healthcheck-port: traffic-port
     alb.ingress.kubernetes.io/healthcheck-protocol: HTTP

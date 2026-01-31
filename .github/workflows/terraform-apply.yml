@@ -612,7 +612,7 @@ jobs:
   deploy-route53:
     name: Deploy Route53 DNS Record
     runs-on: ubuntu-latest
-    needs: [deploy-argocd]
+    needs: [deploy-alb-controller]
     timeout-minutes: 10
     permissions:
       contents: read

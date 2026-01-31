@@ -21,16 +21,14 @@ resource "helm_release" "argocd" {
   )
 
   # Set domain and ingress configuration dynamically if ingress is enabled
-  # Note: hosts is intentionally not set to allow access via ALB hostname or custom domain
-  # Certificate ARN removed for HTTP testing - add back for HTTPS
-  set = var.enable_ingress && var.domain_name != "" ? [
+  set = var.enable_ingress && var.domain_name != "" ? concat([
     {
       name  = "global.domain"
       value = var.domain_name
     },
     {
       name  = "server.config.url"
-      value = "http://${var.domain_name}${var.ingress_path}"
+      value = "https://${var.domain_name}${var.ingress_path}"
     },
     {
       name  = "server.ingress.paths[0]"
@@ -44,5 +42,12 @@ resource "helm_release" "argocd" {
       name  = "server.ingress.annotations.alb\\.ingress\\.kubernetes\\.io/healthcheck-path"
       value = "/healthz"
     }
-  ] : []
+    ],
+    var.certificate_arn != "" ? [
+      {
+        name  = "server.ingress.annotations.alb\\.ingress\\.kubernetes\\.io/certificate-arn"
+        value = var.certificate_arn
+      }
+    ] : []
+  ) : []
 }

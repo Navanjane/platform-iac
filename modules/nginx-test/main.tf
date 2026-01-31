@@ -11,10 +11,7 @@ resource "helm_release" "nginx" {
 
   values = [file("${path.module}/values/nginx.yaml")]
 
-  # Note: hostname is intentionally not set to allow access via ALB hostname or custom domain
-  # Health check uses "/" (nginx root) not the ingress path
-  # Certificate ARN removed for HTTP testing - add back for HTTPS
-  set = [
+  set = concat([
     {
       name  = "ingress.path"
       value = var.ingress_path
@@ -23,5 +20,12 @@ resource "helm_release" "nginx" {
       name  = "ingress.annotations.alb\\.ingress\\.kubernetes\\.io/group\\.name"
       value = var.alb_group_name
     }
-  ]
+    ],
+    var.certificate_arn != "" ? [
+      {
+        name  = "ingress.annotations.alb\\.ingress\\.kubernetes\\.io/certificate-arn"
+        value = var.certificate_arn
+      }
+    ] : []
+  )
 }
