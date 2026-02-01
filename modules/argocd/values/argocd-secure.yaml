@@ -5,11 +5,6 @@ server:
   service:
     type: ClusterIP  # Changed from LoadBalancer - using Ingress instead
 
-  # Configure for path-based routing
-  extraArgs:
-    - --basehref=/argocd
-    - --rootpath=/argocd
-
   ingress:
     enabled: true  # Enable ingress managed by Helm chart
     ingressClassName: alb
