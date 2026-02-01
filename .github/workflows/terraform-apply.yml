@@ -648,7 +648,7 @@ jobs:
   verify-argocd-pods:
     name: Verify ArgoCD Pods
     runs-on: ubuntu-latest
-    needs: [deploy-argocd]
+    needs: [apply-eks, generate-kubeconfig, deploy-argocd]
     timeout-minutes: 15
     permissions:
       contents: read
