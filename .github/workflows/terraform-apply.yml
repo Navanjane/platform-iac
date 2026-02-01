@@ -559,7 +559,7 @@ jobs:
           ALB_HOSTNAME=$(terraform output -raw argocd_alb_hostname || echo "ALB not ready yet")
           echo "$ALB_HOSTNAME"
           echo ""
-          echo "🌐 Access URL: https://$ALB_HOSTNAME/argocd"
+          echo "🌐 Access URL: https://$ALB_HOSTNAME"
           echo ""
           echo "📊 Certificate Status:"
           echo "  $(terraform output -raw acm_certificate_status)"

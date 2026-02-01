@@ -42,9 +42,9 @@ variable "domain_name" {
 }
 
 variable "ingress_path" {
-  description = "Path for ArgoCD ingress (e.g., /argocd)"
+  description = "Path for ArgoCD ingress"
   type        = string
-  default     = "/argocd"
+  default     = "/"
 }
 
 variable "certificate_arn" {
