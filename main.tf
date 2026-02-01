@@ -128,7 +128,7 @@ module "argocd" {
   # Enable ingress with ALB (managed by Helm chart)
   enable_ingress  = true
   domain_name     = var.domain_name
-  ingress_path    = "/argocd"
+  ingress_path    = "/"
   certificate_arn = module.acm.certificate_arn
 
   # ALB configuration

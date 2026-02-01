@@ -42,7 +42,7 @@ server:
     hosts: []
 
     paths:
-      - /argocd
+      - /
 
     pathType: Prefix
 
@@ -58,7 +58,6 @@ server:
 configs:
   params:
     server.insecure: true      # TLS terminates at ALB, backend runs HTTP
-    server.rootpath: "/argocd" # Base path for path-based routing
     server.disable.auth: false # Keep auth enabled
     server.staticassets: /shared/app # Static assets path
     server.x.frame.options: sameorigin # X-Frame-Options header
